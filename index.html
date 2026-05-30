@@ -1,0 +1,2140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Buyer's View</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', 'Segoe UI', sans-serif; font-size: 13px; background: #f7f8fa; color: #111827; -webkit-font-smoothing: antialiased; }
+
+  /* ── HEADER ── */
+  .app-header {
+    background: #fff;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .header-brand { display: flex; align-items: center; gap: 10px; }
+  .brand-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 15px; font-weight: 700;
+  }
+  .brand-name { font-size: 15px; font-weight: 600; color: #111827; }
+  .brand-sub { font-size: 11px; color: #9ca3af; margin-top: 1px; }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .today-pill {
+    background: #f3f4f6; border-radius: 20px;
+    padding: 5px 12px; font-size: 12px; font-weight: 500; color: #374151;
+  }
+  .refresh-btn {
+    display: flex; align-items: center; gap: 6px;
+    background: #2563eb; color: #fff;
+    border: none; padding: 7px 14px; border-radius: 7px;
+    cursor: pointer; font-size: 12px; font-weight: 600;
+    font-family: inherit; transition: background 0.15s;
+  }
+  .refresh-btn:hover { background: #1d4ed8; }
+
+  /* ── TABS ── */
+  .tabs {
+    background: #fff;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    padding: 0 24px;
+    position: sticky; top: 56px; z-index: 99;
+  }
+  .tab {
+    padding: 14px 16px 12px;
+    cursor: pointer; font-size: 13px; font-weight: 500;
+    color: #6b7280; border-bottom: 2px solid transparent;
+    transition: color 0.15s; user-select: none; white-space: nowrap;
+  }
+  .tab:hover { color: #111827; }
+  .tab.active { color: #2563eb; border-bottom-color: #2563eb; }
+  .tab .badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #f3f4f6; color: #6b7280;
+    border-radius: 20px; padding: 1px 7px;
+    font-size: 11px; font-weight: 600; margin-left: 7px;
+  }
+  .tab.active .badge { background: #eff6ff; color: #2563eb; }
+
+  /* ── LAYOUT ── */
+  .content { padding: 20px 24px; max-width: 1400px; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* ── SUMMARY STRIP ── */
+  .summary-strip { display: flex; gap: 1px; background: #e5e7eb; border-radius: 10px; overflow: hidden; margin-bottom: 20px; }
+  .summary-tile { flex: 1; background: #fff; padding: 16px 20px; display: flex; align-items: center; gap: 14px; }
+  .summary-tile:first-child { border-radius: 10px 0 0 10px; }
+  .summary-tile:last-child { border-radius: 0 10px 10px 0; }
+  .tile-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .tile-icon.urgent { background: #fef2f2; }
+  .tile-icon.upcoming { background: #fffbeb; }
+  .tile-icon.soon { background: #f0fdf4; }
+  .tile-icon.invoice { background: #f5f3ff; }
+  .tile-icon.tracking { background: #eff6ff; }
+  .tile-icon.place { background: #fff7ed; }
+  .tile-num { font-size: 26px; font-weight: 700; line-height: 1; }
+  .tile-num.urgent { color: #dc2626; }
+  .tile-num.upcoming { color: #d97706; }
+  .tile-num.soon { color: #16a34a; }
+  .tile-num.invoice { color: #7c3aed; }
+  .tile-num.tracking { color: #2563eb; }
+  .tile-num.place { color: #ea580c; }
+  .tile-label { font-size: 12px; font-weight: 600; color: #374151; }
+  .tile-sub { font-size: 11px; color: #9ca3af; margin-top: 1px; }
+  .tile-money {
+    font-size: 30px; font-weight: 800; color: #7c3aed; line-height: 1.05;
+    margin-top: 6px; letter-spacing: -0.02em;
+    padding: 6px 10px; background: #f5f3ff; border: 1px solid #ddd6fe;
+    border-radius: 8px; display: inline-block;
+  }
+  .tier-money {
+    margin-left: auto; font-size: 18px; font-weight: 800; color: #fff;
+    background: #7c3aed; padding: 4px 12px; border-radius: 6px;
+    letter-spacing: -0.01em;
+  }
+  .so-money { font-size: 15px; font-weight: 700; color: #7c3aed; margin-top: 4px; }
+
+  /* ── TIER SECTIONS ── */
+  .tier-section { margin-bottom: 28px; }
+  .tier-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 0 10px 0; margin-bottom: 8px;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  .tier-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .t1 .tier-dot { background: #dc2626; }
+  .tp .tier-dot { background: #ea580c; }
+  .tu .tier-dot { background: #d97706; }
+  .ts .tier-dot { background: #16a34a; }
+  .tk .tier-dot { background: #2563eb; }
+  .ti .tier-dot { background: #7c3aed; }
+  .tier-title { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; }
+  .t1 .tier-title { color: #dc2626; }
+  .tp .tier-title { color: #ea580c; }
+  .tu .tier-title { color: #d97706; }
+  .ts .tier-title { color: #16a34a; }
+  .tk .tier-title { color: #2563eb; }
+  .ti .tier-title { color: #7c3aed; }
+  .tier-count { font-size: 11px; color: #9ca3af; margin-left: 4px; }
+
+  /* ── SUB-TIER HEADERS (used inside SHIPPING SOON) ── */
+  .sub-tier {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 10px 6px 10px; margin: 14px 0 6px 0;
+    border-left: 3px solid #16a34a; background: #f0fdf4;
+    border-radius: 4px;
+  }
+  .sub-tier.sub-upcoming { border-left-color: #b45309; background: #fffbeb; }
+  .sub-tier.sub-prepaid { border-left-color: #16a34a; background: #f0fdf4; }
+  .sub-tier-title { font-size: 11px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: #374151; }
+  .sub-tier.sub-upcoming .sub-tier-title { color: #b45309; }
+  .sub-tier.sub-prepaid .sub-tier-title { color: #16a34a; }
+  .sub-tier-hint { font-size: 10px; color: #6b7280; font-style: italic; }
+  .sub-tier-count { font-size: 11px; color: #9ca3af; margin-left: auto; }
+
+  .charge-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 4px 12px 2px 12px;
+    font-size: 11px; font-weight: 600;
+  }
+  .charge-card {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+    color: #fff; text-transform: uppercase;
+  }
+  .charge-card-green { background: #16a34a; }
+  .charge-card-brown { background: #78350f; }
+  .charge-card-card { background: #9ca3af; }
+  .charge-amount { color: #b45309; font-size: 11px; }
+
+  /* ── QUEUE CARDS ── */
+  .queue-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 6px;
+    display: grid;
+    grid-template-columns: 28px 200px 1fr 90px;
+    gap: 0 20px;
+    align-items: center;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .queue-card:hover { border-color: #d1d5db; box-shadow: 0 1px 6px rgba(0,0,0,0.07); }
+  .queue-card.t1 { border-left: 3px solid #dc2626; }
+  .queue-card.tp { border-left: 3px solid #ea580c; }
+  .queue-card.tu { border-left: 3px solid #d97706; }
+  .queue-card.ts { border-left: 3px solid #16a34a; }
+  .queue-card.tk { border-left: 3px solid #2563eb; }
+  .queue-card.ti { border-left: 3px solid #7c3aed; }
+
+  .card-po-num { font-size: 14px; font-weight: 700; color: #111827; overflow-wrap: anywhere; word-break: break-word; }
+  .card-vendor-order { font-size: 12px; font-weight: 500; color: #6b7280; margin-top: 2px; overflow-wrap: anywhere; word-break: break-word; }
+  .card-so-ref { font-size: 11px; color: #9ca3af; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-vendor-name { font-size: 12px; font-weight: 500; color: #4b5563; margin-top: 5px; overflow-wrap: anywhere; word-break: break-word; }
+  .card-placed { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+
+  .card-issue { font-size: 13px; font-weight: 500; color: #1f2937; margin-bottom: 5px; line-height: 1.4; }
+  .card-action {
+    font-size: 12px; color: #6b7280;
+    display: flex; align-items: flex-start; gap: 5px;
+  }
+  .arrow { color: #9ca3af; flex-shrink: 0; }
+  .card-note { font-size: 11px; color: #9ca3af; margin-top: 5px; font-style: italic; word-break: break-word; }
+  .pause-badge { display: inline-block; background: #ea580c; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .enter-system-badge { display: inline-block; background: #0891b2; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .ship-cost-badge { display: inline-block; background: #0891b2; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .update-invoice-badge { display: inline-block; background: #d97706; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .callback-badge { display: inline-block; background: #d97706; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .callback-due-badge { display: inline-block; background: #d97706; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .card-note.pause-note { color: #b45309; font-weight: 500; font-style: normal; font-size: 12px; }
+  .card-note.enter-system-note { color: #0e7490; font-weight: 500; font-style: normal; font-size: 12px; }
+  .card-note.update-invoice-note { color: #b45309; font-weight: 500; font-style: normal; font-size: 12px; }
+  .card-note.callback-note { color: #b45309; font-weight: 500; font-style: normal; font-size: 12px; }
+
+  .card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+  .days-badge { text-align: center; }
+  .days-num { font-size: 20px; font-weight: 700; line-height: 1; }
+  .days-lbl { font-size: 10px; color: #9ca3af; margin-top: 1px; }
+  .t1 .days-num { color: #dc2626; }
+  .tp .days-num { color: #ea580c; }
+  .tu .days-num { color: #d97706; }
+  .ts .days-num { color: #16a34a; }
+  .tk .days-num { color: #2563eb; }
+  .ti .days-num { color: #7c3aed; }
+  .btn-dismiss {
+    font-size: 11px; font-weight: 500; color: #6b7280;
+    background: #f9fafb; border: 1px solid #e5e7eb;
+    border-radius: 5px; padding: 4px 10px;
+    cursor: pointer; font-family: inherit;
+    transition: background 0.12s;
+  }
+  .btn-dismiss:hover { background: #f3f4f6; color: #374151; }
+  .queue-card.checked-off { opacity: 0.45; }
+  .queue-card.checked-off > div:nth-child(2) { text-decoration: line-through; }
+  .card-check { width: 18px; height: 18px; cursor: pointer; accent-color: #16a34a; margin-bottom: 6px; }
+
+  /* ── SALES REP VIEW ── */
+  .rep-section { margin-bottom: 28px; }
+  .rep-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 0 10px 0; margin-bottom: 12px;
+    border-bottom: 2px solid #e5e7eb;
+  }
+  .rep-title {
+    font-size: 22px; font-weight: 700; color: #111827;
+    letter-spacing: 0.5px;
+  }
+  .rep-count {
+    font-size: 12px; font-weight: 600; color: #6b7280;
+    background: #f3f4f6; padding: 3px 10px; border-radius: 10px;
+  }
+  .rep-tile-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px; margin-top: 4px;
+  }
+  .rep-tile {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
+    padding: 22px 18px; cursor: pointer; text-align: left;
+    display: flex; flex-direction: column; gap: 6px;
+    transition: box-shadow 0.15s, border-color 0.15s, transform 0.1s;
+    font-family: inherit;
+  }
+  .rep-tile:hover {
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    border-color: #2563eb; transform: translateY(-1px);
+  }
+  .rep-tile-name {
+    font-size: 22px; font-weight: 700; color: #111827; letter-spacing: 0.5px;
+  }
+  .rep-tile-count {
+    font-size: 32px; font-weight: 700; color: #2563eb; line-height: 1; margin-top: 4px;
+  }
+  .rep-tile-sub { font-size: 11px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; }
+  .rep-back-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
+    padding: 7px 14px; font-size: 12px; font-weight: 600; color: #374151;
+    cursor: pointer; margin-bottom: 16px; font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .rep-back-btn:hover { background: #f9fafb; border-color: #d1d5db; }
+  .sales-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; }
+  .so-card {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
+    overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    transition: box-shadow 0.15s, border-color 0.15s;
+  }
+  .so-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-color: #d1d5db; }
+  .so-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; cursor: pointer; user-select: none;
+    background: linear-gradient(to right, #f8fafc, #fff);
+    border-bottom: 1px solid #f3f4f6;
+  }
+  .so-card.complete .so-card-header { background: #fafafa; }
+  .so-card-left { display: flex; align-items: center; gap: 10px; }
+  .so-card-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; flex-shrink: 0;
+  }
+  .so-card.complete .so-card-icon { background: #f3e8ff; }
+  .so-card:not(.complete) .so-card-icon { background: #eff6ff; }
+  .so-card-so { font-size: 13px; font-weight: 700; color: #111827; letter-spacing: 0.2px; }
+  .so-card-date { font-size: 11px; color: #9ca3af; margin-top: 1px; }
+  .so-card-status {
+    font-size: 10px; font-weight: 700; padding: 4px 10px;
+    border-radius: 20px; white-space: nowrap; letter-spacing: 0.5px; text-transform: uppercase;
+  }
+  .so-card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+  .so-card-money { font-size: 14px; font-weight: 700; color: #15803d; letter-spacing: 0.2px; }
+  .so-card-status.active { background: #eff6ff; color: #2563eb; }
+  .so-card-status.complete { background: #dcfce7; color: #15803d; }
+  .so-card.complete .so-card-header { background: #f0fdf4; }
+  .so-card.complete .so-card-icon { background: #dcfce7; }
+  .so-card-status.prepaid { background: #fef3c7; color: #92400e; }
+  .so-card.prepaid .so-card-header { background: #fffbeb; }
+  .so-card.prepaid .so-card-icon { background: #fef3c7; }
+  .so-card-lines { padding: 4px 0; }
+  .so-line-header {
+    display: grid; grid-template-columns: 1fr 80px 1fr; gap: 8px;
+    padding: 4px 18px; font-size: 10px; font-weight: 600; color: #9ca3af;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .so-line-header span:nth-child(2) { text-align: center; }
+  .so-line-header span:last-child { text-align: right; }
+  .so-line {
+    display: grid; grid-template-columns: 1fr 80px 1fr; gap: 8px;
+    padding: 7px 18px; font-size: 12px; align-items: center;
+    transition: background 0.1s;
+  }
+  .so-line:hover { background: #f9fafb; }
+  .so-line + .so-line { border-top: 1px solid #f7f8fa; }
+  .so-line-vendor { font-weight: 500; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .so-line-ship { color: #6b7280; font-size: 11px; text-align: center; }
+  .so-line-info {
+    color: #6b7280; text-align: right; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; font-size: 11px;
+  }
+  .so-line-info.has-tracking { color: #16a34a; font-weight: 600; }
+  .so-line-done { opacity: 0.4; }
+  .so-card-footer {
+    padding: 6px 18px 10px; font-size: 11px; color: #9ca3af;
+    display: flex; gap: 14px;
+  }
+  .so-card-footer span { display: flex; align-items: center; gap: 4px; }
+
+  /* ── ORDERS SHEET ── */
+  .toolbar {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 12px; flex-wrap: wrap;
+  }
+  .toolbar-group { display: flex; gap: 1px; background: #e5e7eb; border-radius: 7px; overflow: hidden; }
+  .toolbar-group .filter-btn {
+    padding: 6px 13px; border: none; background: #fff;
+    cursor: pointer; font-size: 12px; font-weight: 500; color: #6b7280;
+    font-family: inherit; transition: all 0.1s;
+  }
+  .toolbar-group .filter-btn:hover { color: #111827; background: #f9fafb; }
+  .toolbar-group .filter-btn.on { background: #2563eb; color: #fff; }
+  .search-wrap { position: relative; margin-left: auto; }
+  .search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: #9ca3af; font-size: 13px; pointer-events: none; }
+  .search-input {
+    padding: 6px 10px 6px 28px;
+    border: 1px solid #e5e7eb; border-radius: 7px;
+    font-size: 12px; min-width: 220px; outline: none;
+    font-family: inherit; background: #fff; color: #111827;
+    transition: border-color 0.15s;
+  }
+  .search-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+
+  .legend-row {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-bottom: 12px;
+  }
+  .legend-pill {
+    display: flex; align-items: center; gap: 5px;
+    background: #fff; border: 1px solid #e5e7eb;
+    border-radius: 20px; padding: 3px 10px 3px 6px;
+    font-size: 11px; color: #6b7280;
+  }
+  .legend-swatch { width: 10px; height: 10px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1); flex-shrink: 0; }
+
+  .sheet-wrap { overflow: auto; max-height: calc(100vh - 220px); border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; }
+  .sheet-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  .sheet-table thead th {
+    background: #f1f3f9; color: #374151;
+    padding: 0; text-align: left;
+    white-space: nowrap; border-bottom: 2px solid #d1d5db;
+    border-right: 1px solid #e5e7eb;
+    position: sticky; top: 0; z-index: 10;
+    min-width: 0;
+  }
+  .sheet-table thead th:last-child { border-right: none; }
+  .th-inner { display: flex; flex-direction: column; }
+  .th-letter {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+    color: #6b7280; padding: 4px 12px 2px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #e8eaf0;
+  }
+  .th-name {
+    font-size: 11px; font-weight: 500; color: #374151;
+    padding: 4px 12px 5px;
+  }
+  /* row number column */
+  .sheet-table th.row-num-th, .sheet-table td.row-num {
+    background: #f1f3f9 !important; color: #9ca3af;
+    font-size: 10px; text-align: center; padding: 0 8px;
+    border-right: 2px solid #d1d5db;
+    width: 36px; min-width: 36px; max-width: 36px;
+    user-select: none;
+  }
+  .sheet-table th.row-num-th {
+    position: sticky; top: 0; z-index: 11;
+  }
+  .sheet-table td {
+    padding: 6px 12px;
+    border-bottom: 1px solid #f0f0f0;
+    border-right: 1px solid #f3f4f6;
+    max-width: 220px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+    vertical-align: middle; font-size: 12px;
+  }
+  .sheet-table td:last-child { border-right: none; }
+  .sheet-table tbody tr:hover td:not(.row-num) { background: rgba(37,99,235,0.03) !important; }
+  .so-row td { font-weight: 600; font-size: 12px; letter-spacing: 0.1px; }
+  .blank-row td { height: 5px; background: #f7f8fa; border: none; padding: 0; }
+  .note-row td { font-style: italic; color: #9ca3af; font-size: 11px; font-weight: 400; white-space: normal !important; max-width: none !important; overflow: visible !important; text-overflow: unset !important; }
+  .note-cell {
+    font-style: italic; color: #6b7280; font-size: 12px; font-weight: 400;
+    white-space: normal !important; max-width: none !important; overflow: visible !important;
+    padding: 6px 14px; line-height: 1.5;
+    background: rgba(0,0,0,0.02);
+  }
+
+  /* ── EDITABLE CELLS ── */
+  td.editable { cursor: text; }
+  td.editable:hover:not(.editing) { background: rgba(37,99,235,0.05) !important; outline: 1px dashed #93c5fd; outline-offset: -1px; }
+  td.editable.editing { padding: 0; outline: 2px solid #2563eb !important; outline-offset: -2px; background: #fff !important; z-index: 5; position: relative; }
+  td.editable.editing input {
+    width: 100%; height: 100%; min-height: 30px;
+    border: none; outline: none; padding: 7px 12px;
+    font: inherit; background: #fff; color: #111827;
+  }
+  td.editable.modified { background: inherit !important; }
+
+  /* ── SAVE BAR ── */
+  .save-bar {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #1f2937; color: #fff;
+    padding: 12px 20px; border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+    display: flex; align-items: center; gap: 12px;
+    font-size: 13px; font-weight: 500; z-index: 200;
+    white-space: nowrap;
+  }
+  .save-bar.hidden { display: none !important; }
+  .save-bar .dot { width: 7px; height: 7px; background: #facc15; border-radius: 50%; }
+  .save-bar button { padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 12px; font-weight: 600; font-family: inherit; }
+  .btn-export { background: #22c55e; color: #fff; }
+  .btn-export:hover { background: #16a34a; }
+  .btn-discard { background: rgba(255,255,255,0.12); color: #fff; }
+  .btn-discard:hover { background: rgba(255,255,255,0.2); }
+
+  .empty-state { text-align: center; padding: 60px 40px; color: #9ca3af; font-size: 14px; }
+  .empty-icon { font-size: 32px; margin-bottom: 10px; }
+
+  /* ── FILE UPLOAD OVERLAY ── */
+  #upload-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: #f7f8fa; z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column;
+  }
+  #upload-overlay.hidden { display: none; }
+  .upload-box {
+    background: #fff; border: 2px dashed #d1d5db; border-radius: 16px;
+    padding: 60px 80px; text-align: center; cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    max-width: 500px;
+  }
+  .upload-box:hover, .upload-box.dragover {
+    border-color: #2563eb; background: #eff6ff;
+  }
+  .upload-box-icon { font-size: 48px; margin-bottom: 16px; }
+  .upload-box-title { font-size: 18px; font-weight: 600; color: #111827; margin-bottom: 8px; }
+  .upload-box-sub { font-size: 13px; color: #6b7280; }
+  .upload-box input[type="file"] { display: none; }
+  .upload-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 32px; }
+  .upload-brand .brand-icon { width: 40px; height: 40px; font-size: 18px; }
+  .upload-brand .brand-name { font-size: 20px; }
+</style>
+</head>
+<body>
+
+<div id="upload-overlay">
+  <div class="upload-brand">
+    <div class="brand-icon">B</div>
+    <div>
+      <div class="brand-name">Buyer's View</div>
+      <div class="brand-sub">Reyvn prototype</div>
+    </div>
+  </div>
+  <div class="upload-box" id="upload-box" onclick="document.getElementById('file-input').click()">
+    <div class="upload-box-icon">&#128196;</div>
+    <div class="upload-box-title">Open Orders Excel File</div>
+    <div class="upload-box-sub">Click to browse or drag and drop your .xlsx file</div>
+    <input type="file" id="file-input" accept=".xlsx,.xls">
+  </div>
+</div>
+
+<div id="app-container" style="display:none">
+<div class="app-header">
+  <div class="header-brand">
+    <div class="brand-icon">B</div>
+    <div>
+      <div class="brand-name">Buyer's View</div>
+      <div class="brand-sub">Reyvn prototype</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="today-pill" id="todayBadge"></div>
+    <button class="refresh-btn" onclick="newFile()" style="background:#6b7280">&#128196; New File</button>
+    <button class="refresh-btn" onclick="regenerateQueue()">&#8634; Refresh Queue</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('queue')" id="tab-queue">
+    Priority Queue <span class="badge" id="tab-queue-count">0</span>
+  </div>
+  <div class="tab" onclick="switchTab('sales')" id="tab-sales">
+    Sales Rep View <span class="badge" id="tab-sales-count">0</span>
+  </div>
+  <div class="tab" onclick="switchTab('sheet')" id="tab-sheet">
+    Orders Sheet <span class="badge" id="tab-sheet-count">0</span>
+  </div>
+</div>
+
+<div class="content">
+  <div class="view active" id="view-queue">
+    <div class="summary-strip">
+      <div class="summary-tile">
+        <div class="tile-icon urgent">&#128308;</div>
+        <div>
+          <div class="tile-num urgent" id="count-urgent">0</div>
+          <div class="tile-label">Urgent</div>
+          <div class="tile-sub">Action required today</div>
+        </div>
+      </div>
+      <div class="summary-tile">
+        <div class="tile-icon place">&#128221;</div>
+        <div>
+          <div class="tile-num place" id="count-place">0</div>
+          <div class="tile-label">Need to Place</div>
+          <div class="tile-sub">PO not yet created or submitted</div>
+        </div>
+      </div>
+      <div class="summary-tile">
+        <div class="tile-icon upcoming">&#128197;</div>
+        <div>
+          <div class="tile-num upcoming" id="count-upcoming">0</div>
+          <div class="tile-label">Follow Up</div>
+          <div class="tile-sub">Needs attention — not yet urgent</div>
+        </div>
+      </div>
+      <div class="summary-tile">
+        <div class="tile-icon soon">&#128666;</div>
+        <div>
+          <div class="tile-num soon" id="count-soon">0</div>
+          <div class="tile-label">Shipping Soon</div>
+          <div class="tile-sub">Confirmed future ship date</div>
+        </div>
+      </div>
+      <div class="summary-tile">
+        <div class="tile-icon tracking">&#128230;</div>
+        <div>
+          <div class="tile-num tracking" id="count-tracking">0</div>
+          <div class="tile-label">Tracking</div>
+          <div class="tile-sub">Should have shipped — no tracking yet</div>
+        </div>
+      </div>
+      <div class="summary-tile">
+        <div class="tile-icon invoice">&#128468;</div>
+        <div>
+          <div class="tile-num invoice" id="count-invoice">0</div>
+          <div class="tile-label">Ready to Invoice</div>
+          <div class="tile-money" id="money-invoice">$0.00</div>
+          <div class="tile-sub">All POs shipped — SO not yet invoiced</div>
+        </div>
+      </div>
+    </div>
+    <div id="queue-body"></div>
+  </div>
+
+  <div class="view" id="view-sales">
+    <div class="toolbar">
+      <div class="toolbar-group">
+        <button class="filter-btn on" onclick="filterSales('all',this)">All</button>
+        <button class="filter-btn" onclick="filterSales('active',this)">Active</button>
+        <button class="filter-btn" onclick="filterSales('complete',this)">Complete</button>
+        <button class="filter-btn" onclick="filterSales('prepaid',this)">Prepaid</button>
+      </div>
+      <div class="search-wrap">
+        <span class="search-icon">&#128269;</span>
+        <input class="search-input" id="salesSearch" type="text" placeholder="Search SO #, vendor, tracking..." oninput="renderSales()">
+      </div>
+    </div>
+    <div id="sales-body"></div>
+  </div>
+
+  <div class="view" id="view-sheet">
+    <div class="legend-row">
+      <div class="legend-pill"><div class="legend-swatch" style="background:#d9d9d9"></div>Grey — Done</div>
+      <div class="legend-pill"><div class="legend-swatch" style="background:#b2f0f0"></div>Cyan — Shipped</div>
+      <div class="legend-pill"><div class="legend-swatch" style="background:#fff;border:1px solid #ccc"></div>White — Active</div>
+      <div class="legend-pill"><div class="legend-swatch" style="background:#ffffa0"></div>Yellow — Action Needed</div>
+      <div class="legend-pill"><div class="legend-swatch" style="background:#ffb347"></div>Orange — Vendor Cancelled</div>
+      <div class="legend-pill"><div class="legend-swatch" style="background:#c9b8e8"></div>Purple — SO Not Yet Invoiced</div>
+      <div class="legend-pill"><div class="legend-swatch" style="background:#2d2d2d"></div>Black — SO Invoiced or Cancelled (POs may still be active)</div>
+    </div>
+    <div class="toolbar">
+      <div class="toolbar-group">
+        <button class="filter-btn on" onclick="filterSheet('all',this)">All</button>
+        <button class="filter-btn" onclick="filterSheet('active',this)">Active</button>
+        <button class="filter-btn" onclick="filterSheet('done',this)">Done</button>
+      </div>
+      <div class="search-wrap">
+        <span class="search-icon">&#128269;</span>
+        <input class="search-input" id="sheetSearch" type="text" placeholder="Search vendor, PO #, SO #..." oninput="renderSheet()">
+      </div>
+    </div>
+    <div class="sheet-wrap">
+      <table class="sheet-table">
+        <thead>
+          <tr>
+            <th class="row-num-th">#</th>
+            <th style="width:175px"><div class="th-inner"><div class="th-letter">A</div><div class="th-name">Order / Line</div></div></th>
+            <th style="width:88px"><div class="th-inner"><div class="th-letter">B</div><div class="th-name">Date Placed</div></div></th>
+            <th style="width:145px"><div class="th-inner"><div class="th-letter">C</div><div class="th-name">Vendor</div></div></th>
+            <th style="width:195px"><div class="th-inner"><div class="th-letter">D</div><div class="th-name">Status</div></div></th>
+            <th style="width:88px"><div class="th-inner"><div class="th-letter">E</div><div class="th-name">Ship Date</div></div></th>
+            <th style="width:225px"><div class="th-inner"><div class="th-letter">F</div><div class="th-name">Tracking / Notes</div></div></th>
+            <th style="width:145px"><div class="th-inner"><div class="th-letter">G</div><div class="th-name">Vendor Order #</div></div></th>
+            <th style="width:120px"><div class="th-inner"><div class="th-letter">H</div><div class="th-name">Payment Method</div></div></th>
+            <th style="width:110px"><div class="th-inner"><div class="th-letter">I</div><div class="th-name">Order Cost</div></div></th>
+            <th style="width:140px"><div class="th-inner"><div class="th-letter">J</div><div class="th-name">Ship Cost</div></div></th>
+            <th style="width:110px"><div class="th-inner"><div class="th-letter">K</div><div class="th-name">Tax</div></div></th>
+          </tr>
+        </thead>
+        <tbody id="sheet-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="save-bar hidden" id="saveBar">
+  <div class="dot"></div>
+  <span id="saveBarMsg">Unsaved changes</span>
+  <button class="btn-export" onclick="exportEdits()">&#8595; Export CSV</button>
+  <button class="btn-discard" onclick="discardEdits()">Discard</button>
+</div>
+</div>
+
+<script>
+let RAW_DATA = [];
+let _lastFile = null;
+let _queueOverrides = {};
+let _checkedOff = {};
+
+const _now = new Date();
+const TODAY = new Date(_now.getFullYear(), _now.getMonth(), _now.getDate());
+
+// ── File Upload Logic ──
+const uploadBox = document.getElementById('upload-box');
+const fileInput = document.getElementById('file-input');
+
+uploadBox.addEventListener('dragover', function(e) {
+  e.preventDefault(); uploadBox.classList.add('dragover');
+});
+uploadBox.addEventListener('dragleave', function() {
+  uploadBox.classList.remove('dragover');
+});
+uploadBox.addEventListener('drop', function(e) {
+  e.preventDefault(); uploadBox.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', function() {
+  if (fileInput.files.length) handleFile(fileInput.files[0]);
+});
+
+function handleFile(file) {
+  _lastFile = file;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array', cellStyles: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      RAW_DATA = convertSheet(ws);
+      document.getElementById('upload-overlay').classList.add('hidden');
+      document.getElementById('app-container').style.display = '';
+      startApp();
+    } catch (err) {
+      alert('Error reading file: ' + err.message);
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function reloadFile(callback) {
+  if (!_lastFile) { if (callback) callback(); return; }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const data = new Uint8Array(e.target.result);
+    const wb = XLSX.read(data, { type: 'array', cellStyles: true });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    RAW_DATA = convertSheet(ws);
+    if (callback) callback();
+  };
+  reader.readAsArrayBuffer(_lastFile);
+}
+
+function convertSheet(ws) {
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  const rows = [];
+  for (let r = range.s.r + 1; r <= range.e.r; r++) {
+    const cellA = ws[XLSX.utils.encode_cell({r: r, c: 0})];
+    const cellB = ws[XLSX.utils.encode_cell({r: r, c: 1})];
+    const cellC = ws[XLSX.utils.encode_cell({r: r, c: 2})];
+    const cellD = ws[XLSX.utils.encode_cell({r: r, c: 3})];
+    const cellE = ws[XLSX.utils.encode_cell({r: r, c: 4})];
+    const cellF = ws[XLSX.utils.encode_cell({r: r, c: 5})];
+    const cellG = ws[XLSX.utils.encode_cell({r: r, c: 6})];
+    const cellH = ws[XLSX.utils.encode_cell({r: r, c: 7})];
+    const cellI = ws[XLSX.utils.encode_cell({r: r, c: 8})];
+    const cellJ = ws[XLSX.utils.encode_cell({r: r, c: 9})];
+    const cellK = ws[XLSX.utils.encode_cell({r: r, c: 10})];
+
+    const valA = cellA ? cellA.v : null;
+    const valB = cellB ? cellB.v : null;
+
+    // Get colors from cell style
+    let bgHex = '#ffffff', textHex = '#000000', rawColor = 'FFFFFFFF';
+    if (cellA && cellA.s) {
+      if (cellA.s.fgColor && cellA.s.fgColor.rgb) {
+        const rgb = cellA.s.fgColor.rgb;
+        rawColor = 'FF' + rgb;
+        bgHex = '#' + rgb.toLowerCase();
+      }
+      if (cellA.s.color && cellA.s.color.rgb) {
+        textHex = '#' + cellA.s.color.rgb.toLowerCase();
+      }
+    }
+
+    // Detect SO vs blank
+    let isSO = false;
+    let colA = '';
+    let rowType = null;
+
+    if (valA == null || (typeof valA === 'string' && valA.trim() === '')) {
+      const allBlank = [cellA, cellB, cellC, cellD, cellE, cellF, cellG, cellH, cellI, cellJ, cellK]
+        .every(c => !c || c.v == null || (typeof c.v === 'string' && c.v.trim() === ''));
+      if (allBlank) rowType = 'blank';
+    } else {
+      colA = String(valA).trim();
+      if (typeof valA === 'number' && valA === Math.floor(valA)) colA = String(Math.floor(valA));
+      if (rawColor === 'FF000000' || rawColor === 'FFB4A7D6' || rawColor === 'FFD9D2E9') {
+        isSO = true;
+      }
+    }
+
+    // Format dates
+    let datePlaced = '';
+    if (valB != null) {
+      if (cellB.t === 'n' && cellB.v > 25000) {
+        const dt = XLSX.SSF.parse_date_code(cellB.v);
+        datePlaced = String(dt.m).padStart(2,'0') + '/' + String(dt.d).padStart(2,'0') + '/' + dt.y;
+      } else {
+        datePlaced = String(valB);
+      }
+    }
+
+    let shipDate = '';
+    const valE = cellE ? cellE.v : null;
+    if (valE != null) {
+      if (cellE.t === 'n' && cellE.v > 25000) {
+        const dt = XLSX.SSF.parse_date_code(cellE.v);
+        shipDate = dt.m + '/' + String(dt.d).padStart(2,'0');
+      } else {
+        shipDate = String(valE);
+      }
+    }
+
+    // Get column J (ship_cost) cell color
+    let shipCostColor = 'FFFFFFFF';
+    if (cellJ && cellJ.s && cellJ.s.fgColor && cellJ.s.fgColor.rgb) {
+      shipCostColor = 'FF' + cellJ.s.fgColor.rgb;
+    }
+
+    const entry = {
+      bg: bgHex,
+      text: textHex,
+      raw_color: rawColor,
+      is_so: isSO,
+      col_a: colA,
+      date_placed: datePlaced,
+      vendor: cellC ? String(cellC.v || '') : '',
+      status: cellD ? String(cellD.v || '') : '',
+      ship_date: shipDate,
+      tracking: cellF ? String(cellF.v || '') : '',
+      vendor_order: cellG ? String(cellG.v || '') : '',
+      payment_method: cellH ? String(cellH.v || '') : '',
+      order_cost: cellI ? String(cellI.v || '') : '',
+      ship_cost: cellJ ? String(cellJ.v || '') : '',
+      ship_cost_color: shipCostColor,
+      tax: cellK ? String(cellK.v || '') : '',
+    };
+    if (rowType === 'blank') entry.type = 'blank';
+    rows.push(entry);
+  }
+  return rows;
+}
+
+function startApp() {
+  const d = TODAY;
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('todayBadge').textContent = months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+  queueItems = buildQueue();
+  renderQueue();
+  renderSales();
+  renderSheet();
+}
+
+function parseDate(s) {
+  if (!s || s === '??' || s === '?') return null;
+  let m;
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return new Date(+m[3], +m[1]-1, +m[2]);
+  m = s.match(/^(\d{1,2})\/(\d{1,2})$/);
+  if (m) return new Date(2026, +m[1]-1, +m[2]);
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(+m[1], +m[2]-1, +m[3]);
+  return null;
+}
+
+function isWeekday(d) { return d.getDay() !== 0 && d.getDay() !== 6; }
+
+function bizDaysBetween(start, end) {
+  if (!start || !end) return null;
+  let count = 0, cur = new Date(start);
+  cur.setHours(0,0,0,0);
+  const e = new Date(end); e.setHours(0,0,0,0);
+  if (cur >= e) return 0;
+  while (cur < e) { cur.setDate(cur.getDate()+1); if (isWeekday(cur)) count++; }
+  return count;
+}
+
+function subtractBizDays(date, n) {
+  let d = new Date(date), count = 0;
+  while (count < n) { d.setDate(d.getDate()-1); if (isWeekday(d)) count++; }
+  return d;
+}
+
+function fmtDate(d) {
+  if (!d) return '';
+  return (d.getMonth()+1).toString().padStart(2,'0') + '/' + d.getDate().toString().padStart(2,'0') + '/' + d.getFullYear();
+}
+
+const T1_KW = ['cancel','wrong part','need vendor',"vendor won't sell",'vendor wont sell','vendor cancelled','duplicate','do not pay','upfront','harass','keep calling','double placing',"don't pay",'dont pay','re-source','wont sell'];
+const T2_KW = ['awaiting','waiting','backorder','pending fulfillment','still processing'];
+
+function findKeyword(text, kws) {
+  if (!text) return null;
+  const t = text.toLowerCase();
+  for (const k of kws) if (t.includes(k)) return k;
+  return null;
+}
+
+function hasTracking(s, shipDateStr) {
+  if (!s) return false;
+  const t = s.toLowerCase();
+  // NOTRACK: delivery-type order (no carrier tracking by design).
+  // Token may appear alongside delivery-window description, so match as a word anywhere.
+  // Counts as tracked only after ship/delivery date has passed.
+  if (/\bnotrack\b/i.test(s)) {
+    const sd = shipDateStr ? parseDate(shipDateStr) : null;
+    return !!(sd && sd <= TODAY);
+  }
+  if (/1z[0-9a-z]{15,}/i.test(s)) return true;
+  if (/tba[0-9]{10,}/i.test(s)) return true;
+  if (/[0-9]{15,}/.test(s)) return true;
+  if (/mve-[0-9]+/i.test(s)) return true;
+  if (/[0-9]{10,}/.test(s) && (t.includes('shipped') || t.includes('delivered') || t.includes('fedex') || t.includes('usps') || t.includes('ups') || t.includes('ontrac'))) return true;
+  if (t.includes('ltl') && /[0-9]{8,}/.test(s)) return true;
+  return false;
+}
+
+function parseBlocks() {
+  const blocks = [];
+  let curSO = null, curPOs = [];
+  for (const row of RAW_DATA) {
+    if (row.type === 'blank') {
+      if (curSO || curPOs.length) blocks.push({so: curSO, pos: curPOs});
+      curSO = null; curPOs = [];
+      continue;
+    }
+    if (row.is_so) {
+      if (curSO || curPOs.length) blocks.push({so: curSO, pos: curPOs});
+      curSO = row; curPOs = [];
+    } else if (!row.col_a || (row.col_a && !/^\d{4,6}(\.\d)?$/.test(row.col_a.trim()) && !/^line\s/i.test(row.col_a.trim()) && !/PO-/i.test(row.col_a.trim()) && !/^1V\s/i.test(row.col_a.trim()))) {
+      if (curPOs.length) {
+        const last = curPOs[curPOs.length-1];
+        const noteText = row.tracking || row.col_a || '';
+        last._extra = (last._extra || '') + (noteText ? ' ' + noteText : '');
+      }
+    } else {
+      curPOs.push({...row, _so: curSO});
+    }
+  }
+  if (curSO || curPOs.length) blocks.push({so: curSO, pos: curPOs});
+  // Drop CONSTRUCTION orders — tracked on a separate sheet, not actionable here.
+  // Match on col D (status field) of the SO row or any PO row in the block.
+  return blocks.filter(b => {
+    const hasConstruction = (s) => /construction/i.test(s || '');
+    if (b.so && hasConstruction(b.so.status)) return false;
+    if (b.pos.some(po => hasConstruction(po.status))) return false;
+    return true;
+  });
+}
+
+function cleanVendorName(v) {
+  return (v || '')
+    .replace(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g, '')
+    .replace(/[\s\-,]+$/, '')
+    .replace(/^[\s\-,]+/, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+// Grey "done" cells appear in two shades in the wild: canonical FFD9D9D9 and the
+// near-identical FFCCCCCC. Treat both as "done — skip".
+const GREY_DONE = new Set(['FFD9D9D9', 'FFCCCCCC']);
+
+// Combine tracking + buyer continuation notes (_extra) for the queue card.
+// Optional prefix (e.g. "Order cost: ...") is shown first.
+function poNoteText(po, prefix) {
+  const parts = [];
+  if (prefix) parts.push(prefix);
+  const trk = (po.tracking || '').trim();
+  if (trk) parts.push(trk);
+  const extra = (po._extra || '').trim();
+  if (extra) parts.push(extra);
+  return parts.join(' | ');
+}
+
+function classifyPO(po, soRow) {
+  const color = po.raw_color || 'FFFFFFFF';
+  if (GREY_DONE.has(color)) return null;
+  if (color === 'FFFF9900') return null;
+  if (color === 'FF000000') return null;
+  const statusL = (po.status || '').toLowerCase().trim();
+  const shipCostNeedsAction = /^\?+$/.test((po.ship_cost || '').trim());
+  if (color === 'FF00FFFF') {
+    // Cyan is normally done, but if ship cost has ??? there's still work to do
+    if (shipCostNeedsAction) {
+      const poMatch = po.col_a.match(/\b(\d{4,6})(\.0)?\b/);
+      const poNum = poMatch ? poMatch[1] : po.col_a.replace('.0','');
+      const vendor = po.vendor || '';
+      const soNum = soRow ? soRow.col_a : '';
+      return {
+        poNum, soNum, vendor, tier: 'upcoming',
+        tierLabel: 'FOLLOW UP',
+        issue: 'Shipped but ship cost unknown — need to update system',
+        action: 'Contact ' + (cleanVendorName(vendor) || 'vendor') + ' for shipping cost',
+        datePlaced: po.date_placed || '',
+        daysOpen: 0,
+        shipDate: po.ship_date || '',
+        daysUntil: null,
+        notePreview: poNoteText(po, 'Order cost: ' + (po.order_cost || '')),
+      };
+    }
+    return null;
+  }
+
+  // Non-cyan row with tracking number = not yet entered in system
+  // Row should be cyan but buyer was interrupted before entering tracking in Channel/Reyvn
+  // Status may still say shipped/delivered, or could be stale (e.g. "wo placed") — the
+  // tracking number itself is proof the order shipped regardless of what status says
+  // Exception: "partial ship" status — the first shipment IS in the system; remaining
+  //   shipments are pending. Future ship date → SHIPPING SOON branch handles it later.
+  //   Past ship date → its own TRACKING handler below.
+  const isPartialShip = /partial\s*ship/i.test(po.status || '');
+  const poShipDate = parseDate(po.ship_date);
+  if (isPartialShip && hasTracking(po.tracking, po.ship_date) && (!poShipDate || poShipDate <= TODAY)) {
+    const poMatch = po.col_a.match(/\b(\d{4,6})(\.0)?\b/);
+    const poNum = poMatch ? poMatch[1] : po.col_a.replace('.0','');
+    const vendor = po.vendor || '';
+    const soNum = soRow ? soRow.col_a : '';
+    return {
+      poNum, soNum, vendor, tier: 'tracking',
+      tierLabel: 'TRACKING',
+      issue: 'Partial ship — first shipment received, remaining shipment(s) pending',
+      action: 'Follow up with ' + (cleanVendorName(vendor) || 'vendor') + ' for remaining items and tracking',
+      datePlaced: po.date_placed || '',
+      daysOpen: 0,
+      shipDate: po.ship_date || '',
+      daysUntil: null,
+      notePreview: poNoteText(po),
+    };
+  }
+  if (color !== 'FF00FFFF' && hasTracking(po.tracking, po.ship_date) && !isPartialShip) {
+    const poMatch = po.col_a.match(/\b(\d{4,6})(\.0)?\b/);
+    const poNum = poMatch ? poMatch[1] : po.col_a.replace('.0','');
+    const vendor = po.vendor || '';
+    const soNum = soRow ? soRow.col_a : '';
+    const costUnknown = shipCostNeedsAction;
+    return {
+      poNum, soNum, vendor, tier: 'tracking',
+      tierLabel: 'TRACKING',
+      isEnterSystem: true,
+      isShipCostUnknown: costUnknown,
+      issue: costUnknown
+        ? 'Shipped with tracking — not yet in system, ship cost unknown'
+        : 'Shipped with tracking — not yet entered in system',
+      action: costUnknown
+        ? 'Enter tracking in Channel/Reyvn, mark row cyan, and contact ' + (cleanVendorName(vendor) || 'vendor') + ' for ship cost'
+        : 'Enter tracking in Channel/Reyvn and mark row cyan',
+      datePlaced: po.date_placed || '',
+      daysOpen: 0,
+      shipDate: po.ship_date || '',
+      daysUntil: null,
+      notePreview: poNoteText(po),
+    };
+  }
+
+  if (!po.col_a) return null;
+
+  // Incomplete order stub — col_a populated (line N, PO number, or PO-X marker)
+  // but no vendor in col C. Buyer started the row and forgot to finish it.
+  // Flag orange so it doesn't get lost.
+  if (!po.vendor) {
+    const poMatchStub = po.col_a.match(/\b(\d{4,6})(\.0)?\b/);
+    const poNumStub = poMatchStub ? poMatchStub[1] : po.col_a.trim();
+    const soNumStub = soRow ? soRow.col_a : '';
+    const datePlacedStub = parseDate(po.date_placed);
+    const daysOpenStub = datePlacedStub ? bizDaysBetween(datePlacedStub, TODAY) : 0;
+    return {
+      poNum: poNumStub, soNum: soNumStub, vendor: '', tier: 'place',
+      tierLabel: 'NEED TO PLACE',
+      issue: 'Incomplete order — row started but vendor not entered yet',
+      action: 'Fill in vendor (col C) and complete the order',
+      datePlaced: po.date_placed || '',
+      daysOpen: daysOpenStub || 0,
+      shipDate: po.ship_date || '',
+      daysUntil: null,
+      notePreview: poNoteText(po),
+    };
+  }
+
+  const allText = [po.tracking || '', po._extra || '', po.status || ''].join(' ');
+  const tracking = hasTracking(po.tracking, po.ship_date);
+  const vendorOrderTrim = (po.vendor_order || '').trim();
+  const confirmed = !!vendorOrderTrim && !/^\?+$/.test(vendorOrderTrim);
+  const datePlaced = parseDate(po.date_placed);
+  const shipDate = parseDate(po.ship_date);
+  const daysOpen = datePlaced ? bizDaysBetween(datePlaced, TODAY) : null;
+  const daysUntil = (shipDate && shipDate > TODAY) ? bizDaysBetween(TODAY, shipDate) : null;
+
+  const poMatch = po.col_a.match(/\b(\d{4,6})(\.0)?\b/);
+  const poNum = poMatch ? poMatch[1] : po.col_a.replace('.0','');
+  const vendor = po.vendor || '';
+  const soNum = soRow ? soRow.col_a : '';
+  const noPONumber = /^line\s/i.test(po.col_a.trim()) && !poMatch;
+
+  // PAUSE NEED INFO — order needs placing but is blocked pending more information (check before generic noPONumber)
+  const isPause = /pause.?need.?info/i.test(statusL);
+
+  // PO row has line + vendor but no PO number — buyer hasn't created/submitted the PO yet
+  if (noPONumber && vendor) {
+    const noteText = poNoteText(po);
+    return {
+      poNum: po.col_a.trim(), soNum, vendor, tier: 'place',
+      tierLabel: 'NEED TO PLACE',
+      isPause,
+      issue: isPause ? 'PAUSE — Need info before placing PO' : 'No PO number — PO not yet created or submitted',
+      action: isPause ? 'Resolve blocker first (see notes), then place PO with ' + (cleanVendorName(vendor) || 'vendor') : 'Create PO in Channel and submit to ' + cleanVendorName(vendor),
+      datePlaced: po.date_placed || '',
+      daysOpen: daysOpen || 0,
+      shipDate: po.ship_date || '',
+      daysUntil,
+      notePreview: noteText,
+    };
+  }
+
+  // PO number exists but no status column.
+  //   Branch A — col C (vendor) contains an email address: treat col B (date_placed) as
+  //     the indicator that the PO email was already sent. Apply the PO Submitted
+  //     escalation (day 0 silent, day 1 orange call-for-ack, day 2+ URGENT). Status
+  //     column being blank is a common data-entry slip and should not block escalation.
+  //   Branch B — no email in col C: the PO was created in Channel but not yet emailed.
+  //     Keep the classic "submit it" orange flag.
+  if (poMatch && !statusL) {
+    const vendorHasEmail = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/.test(po.vendor || '');
+    const noteText = ((po.tracking || '') + (po._extra ? ' | ' + po._extra.trim() : ''));
+
+    if (vendorHasEmail && daysOpen !== null) {
+      if (daysOpen === 0) return null; // placed today — silent, vendor hasn't had time
+      const isUrgent = daysOpen >= 2;
+      return {
+        poNum, soNum, vendor, tier: isUrgent ? 1 : 'place',
+        tierLabel: isUrgent ? 'URGENT' : 'NEED TO PLACE',
+        issue: isUrgent
+          ? 'PO emailed ' + daysOpen + ' biz days ago — no vendor acknowledgment or order number'
+          : 'PO emailed yesterday — call vendor to confirm they received it',
+        action: 'Contact ' + (cleanVendorName(vendor) || 'vendor') + ' to confirm they received the PO',
+        datePlaced: po.date_placed || '',
+        daysOpen: daysOpen || 0,
+        shipDate: po.ship_date || '',
+        daysUntil,
+        notePreview: noteText,
+      };
+    }
+
+    return {
+      poNum, soNum, vendor, tier: 'place',
+      tierLabel: 'NEED TO PLACE',
+      issue: 'PO created in Channel but not yet placed — no status',
+      action: 'Submit PO to ' + (cleanVendorName(vendor) || 'vendor'),
+      datePlaced: po.date_placed || '',
+      daysOpen: daysOpen || 0,
+      shipDate: po.ship_date || '',
+      daysUntil,
+      notePreview: noteText,
+    };
+  }
+
+  // PO Submitted but no vendor acknowledgment.
+  //  Day 1 (next biz day, no ack yet) → NEED TO PLACE (orange). Calling the day after
+  //    submitting is considered part of normal ordering, not an escalation.
+  //  Day 2+ → URGENT (red). Vendor should have acknowledged by now.
+  if (statusL === 'po submitted' && !confirmed && daysOpen !== null && daysOpen >= 1) {
+    const noteText = ((po.tracking || '') + (po._extra ? ' | ' + po._extra.trim() : ''));
+    const isUrgent = daysOpen >= 2;
+    return {
+      poNum, soNum, vendor, tier: isUrgent ? 1 : 'place',
+      tierLabel: isUrgent ? 'URGENT' : 'NEED TO PLACE',
+      issue: isUrgent
+        ? 'PO submitted ' + daysOpen + ' biz days ago — no vendor acknowledgment or order number'
+        : 'PO submitted yesterday — call vendor to confirm they received it',
+      action: 'Contact ' + (cleanVendorName(vendor) || 'vendor') + ' to confirm they received the PO',
+      datePlaced: po.date_placed || '',
+      daysOpen: daysOpen || 0,
+      shipDate: po.ship_date || '',
+      daysUntil,
+      notePreview: noteText,
+    };
+  }
+
+  // Detect charge-on-ship signals early — three equivalent markers:
+  //   1. CWS token in col H (canonical)
+  //   2. Status text "charges on shipment"
+  //   3. Pure ??? in ship cost col (??? in ship cost only occurs on CWS-like orders)
+  // Any of these = vendor runs card on ship → UPCOMING CHARGES bucket.
+  const chargeOnShip = /charges? on ship(ment)?/i.test(po.status || '');
+  const pm = (po.payment_method || '').trim();
+  const isCWS = /CWS/i.test(pm);
+  const cardMatch = pm.match(/(GREEN|BROWN)/i);
+  const cardColor = cardMatch ? cardMatch[1].toUpperCase() : '';
+  const isUpcomingChargeSignal = isCWS || chargeOnShip || shipCostNeedsAction;
+
+  // Ship cost needs action — text signals unknown cost
+  // "update from invoice" means vendor bills shipping after ship (weigh-first) — NOT a follow-up
+  // Pure ??? is now a charge-on-ship signal, not a generic unknown — don't flag as FOLLOW UP here
+  const shipCostText = (po.ship_cost || '').trim();
+  const shipCostUpdateFromInvoice = /update from invoice/i.test(shipCostText);
+  const shipCostUnknown = !shipCostUpdateFromInvoice && !isUpcomingChargeSignal && /unknown|check invoice|tbd/i.test(shipCostText);
+  if (shipCostUnknown) {
+    return {
+      poNum, soNum, vendor, tier: 'upcoming',
+      tierLabel: 'FOLLOW UP',
+      issue: 'Ship cost unknown — "' + shipCostText.substring(0, 60) + '"' + (po.ship_date ? ' | Ships ' + po.ship_date : ''),
+      action: 'Look up ship cost — check vendor invoice or portal',
+      datePlaced: po.date_placed || '',
+      daysOpen: daysOpen || 0,
+      shipDate: po.ship_date || '',
+      daysUntil,
+      notePreview: poNoteText(po, 'Order cost: ' + (po.order_cost || '') + ' | Ship cost: ' + shipCostText),
+    };
+  }
+
+  // Ship date unknown — question marks in column E mean vendor couldn't provide a date
+  const shipDateUnknown = /^\?+$/.test((po.ship_date || '').trim());
+  if (shipDateUnknown) {
+    const noteText = ((po.tracking || '') + (po._extra ? ' | ' + po._extra.trim() : ''));
+    // Build list of what's missing
+    const missing = ['ship date'];
+    if (!confirmed) missing.push('vendor order #');
+    // Look for contact info in notes (email pattern)
+    const emailMatch = allText.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+    const contactHint = emailMatch ? ' — ' + emailMatch[0] : '';
+
+    // If order has tracking but ship date reverted to ???, something went wrong
+    // in transit (refused delivery, cancelled, etc.) — URGENT.
+    // A vendor order # alone (no tracking) doesn't mean delivery is in progress —
+    // a fresh "confirmed" order with ??? ship date is just a normal follow-up.
+    if (tracking) {
+      return {
+        poNum, soNum, vendor, tier: 1,
+        tierLabel: 'URGENT',
+        issue: 'Delivery issue — ship date reverted to unknown on in-progress order',
+        action: 'Contact ' + (cleanVendorName(vendor) || 'vendor') + ' — check delivery status, refund, or reshipment',
+        datePlaced: po.date_placed || '',
+        daysOpen: daysOpen || 0,
+        shipDate: po.ship_date || '',
+        daysUntil,
+        notePreview: noteText,
+      };
+    }
+
+    return {
+      poNum, soNum, vendor, tier: 'upcoming',
+      tierLabel: 'FOLLOW UP',
+      issue: 'Missing ' + missing.join(' and '),
+      action: 'Follow up with ' + (cleanVendorName(vendor) || 'vendor') + ' for ' + missing.join(' and ') + contactHint,
+      datePlaced: po.date_placed || '',
+      daysOpen: daysOpen || 0,
+      shipDate: po.ship_date || '',
+      daysUntil,
+      notePreview: noteText,
+    };
+  }
+
+  // Acknowledged, pay before ship — vendor confirmed the order and is waiting on payment
+  // If ship date exists, use ship date proximity (urgent 1 biz day before).
+  // Only fall back to date_placed when there's no ship date.
+  const payBeforeShip = /pay before ship/i.test(po.status || '');
+  if (payBeforeShip) {
+    if (!tracking) {
+      let lateMsg = '';
+      let isUrgent = false;
+      if (shipDate) {
+        const reminderStart = subtractBizDays(shipDate, 1);
+        if (TODAY >= reminderStart) {
+          isUrgent = true;
+          lateMsg = daysUntil > 0 ? ' — payment due in ' + daysUntil + ' biz day' + (daysUntil===1?'':'s') : ' — payment due now';
+        } else {
+          return null; // No action needed until 1 biz day before ship date
+        }
+      } else if (datePlaced) {
+        const daysSincePlaced = bizDaysBetween(datePlaced, TODAY);
+        if (daysSincePlaced > 1) {
+          lateMsg = ' — PO sent ' + daysSincePlaced + ' biz days ago, no ship date to target payment';
+          isUrgent = true;
+        } else if (daysSincePlaced === 1) {
+          lateMsg = ' — PO sent yesterday, no ship date yet';
+          isUrgent = true;
+        } else {
+          lateMsg = ' — PO sent today';
+        }
+      }
+      const shipInfo = shipDate ? ' | Ships ' + fmtDate(shipDate) : '';
+      return {
+        poNum, soNum, vendor, tier: isUrgent ? 1 : 'upcoming',
+        tierLabel: isUrgent ? 'URGENT' : 'UPCOMING',
+        issue: 'Acknowledged, pay before ship' + lateMsg + shipInfo,
+        action: 'Call ' + (cleanVendorName(vendor) || 'vendor') + ' sales rep and provide payment',
+        datePlaced: po.date_placed || '',
+        daysOpen: daysOpen || 0,
+        shipDate: po.ship_date || '',
+        daysUntil,
+        notePreview: poNoteText(po, 'Order cost: ' + (po.order_cost || '') + (po.ship_cost ? ' | Ship cost: ' + po.ship_cost : '')),
+      };
+    }
+  }
+
+  // Shipped, invoice pending — vendor shipped and will email invoice with tracking + ship cost
+  // Yellow/follow-up: buyer needs to check email, update tracking and ship cost in system
+  const shippedInvoicePending = /shipped,?\s*invoice pending/i.test(statusL);
+  if (shippedInvoicePending) {
+    const noteText = ((po.tracking || '') + (po._extra ? ' | ' + po._extra.trim() : ''));
+    return {
+      poNum, soNum, vendor, tier: 'upcoming',
+      tierLabel: 'FOLLOW UP',
+      isUpdateFromInvoice: true,
+      issue: 'Shipped — invoice pending with tracking and ship cost',
+      action: 'Check email for ' + (cleanVendorName(vendor) || 'vendor') + ' invoice, then update tracking number and ship cost',
+      datePlaced: po.date_placed || '',
+      daysOpen: daysOpen || 0,
+      shipDate: po.ship_date || '',
+      daysUntil,
+      notePreview: noteText || ('Order cost: ' + (po.order_cost || '')),
+    };
+  }
+
+
+  // Confirmed, follow up — vendor confirmed but can't give ship date yet; buyer agreed to call back
+  // on a specific date (encoded in ship date field as "unknown, follow up MM/DD")
+  const confirmedFollowUp = /confirmed,?\s*follow.?up/i.test(statusL);
+  if (confirmedFollowUp) {
+    const callbackMatch = (po.ship_date || '').match(/(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)/);
+    const callbackDate = callbackMatch ? parseDate(callbackMatch[1]) : null;
+    const noteText = ((po.tracking || '') + (po._extra ? ' | ' + po._extra.trim() : ''));
+    if (callbackDate && TODAY < callbackDate) {
+      const dUntil = bizDaysBetween(TODAY, callbackDate);
+      return {
+        poNum, soNum, vendor, tier: 'upcoming',
+        tierLabel: 'FOLLOW UP',
+        isAwaitingCallback: true,
+        issue: 'Vendor researching ship date — agreed callback ' + fmtDate(callbackDate) + (dUntil ? ' (' + dUntil + ' biz day' + (dUntil===1?'':'s') + ')' : ''),
+        action: 'Wait — call ' + (cleanVendorName(vendor) || 'vendor') + ' on ' + fmtDate(callbackDate) + ' for ship date update',
+        datePlaced: po.date_placed || '',
+        daysOpen: daysOpen || 0,
+        shipDate: po.ship_date || '',
+        daysUntil: dUntil,
+        notePreview: noteText,
+      };
+    }
+    return {
+      poNum, soNum, vendor, tier: 'upcoming',
+      tierLabel: 'FOLLOW UP',
+      isCallbackDue: true,
+      issue: callbackDate ? 'Callback due — agreed to call ' + fmtDate(callbackDate) + ' for ship date' : 'Callback due — vendor was researching ship date',
+      action: 'Call ' + (cleanVendorName(vendor) || 'vendor') + ' for ship date update',
+      datePlaced: po.date_placed || '',
+      daysOpen: daysOpen || 0,
+      shipDate: po.ship_date || '',
+      daysUntil: null,
+      notePreview: noteText,
+    };
+  }
+
+  // If shipped & confirmed & tracking, normally done — but charge-on-ship orders
+  // still need the buyer to pull shipping charge (and possibly tracking) from the vendor invoice
+  if (shipDate && shipDate <= TODAY && confirmed && tracking) {
+    if (chargeOnShip) {
+      return {
+        poNum, soNum, vendor, tier: 1,
+        tierLabel: 'URGENT',
+        issue: 'Charges on shipment — shipping charge and tracking pending',
+        action: 'After ship date, check invoice in email for shipping charge and tracking number',
+        datePlaced: po.date_placed || '',
+        daysOpen: daysOpen || 0,
+        shipDate: po.ship_date || '',
+        daysUntil,
+        notePreview: poNoteText(po, 'Order cost: ' + (po.order_cost || '') + ' | Ship cost: ' + (po.ship_cost || '')),
+      };
+    }
+    return null;
+  }
+
+  // Vendor has explicitly said they will contact us — nothing to do on our end
+  const vendorWillContact = /will contact (you|us)|we will (call|reach out|contact)|contact you (for|when|with)|will reach out/i.test(allText);
+  if (vendorWillContact) return null;
+
+  let tier = null, issue = '', action = '';
+
+  // Confirmed with a future ship date = Shipping Soon — notes may contain historical
+  // context (e.g. "cancelled and rescheduled") that shouldn't override the current status
+  // Upcoming-charge signals (CWS / charges-on-shipment / ??? ship cost) → Upcoming Charges sub-section
+  if (shipDate && shipDate > TODAY && confirmed) {
+    const dLabel = daysUntil !== null ? daysUntil + ' biz day' + (daysUntil===1?'':'s') + ' away' : '';
+    tier = 'soon'; issue = 'Ships ' + fmtDate(shipDate) + (dLabel ? ' — ' + dLabel : '');
+    action = isUpcomingChargeSignal
+      ? 'Watch for card charge on ship date — ensure ' + (cardColor || 'card on file') + ' has funds; pull ship cost from invoice after ship'
+      : shipCostUpdateFromInvoice
+      ? 'Monitor — confirmed with vendor (check invoice for ship cost after delivery)'
+      : 'Monitor — confirmed with vendor';
+  } else {
+    // Detect notes that need a vendor call
+    const needsCall = /still processing|support ticket|awaiting response|no update|pending|back.?order|on hold/i.test(allText);
+
+    const kw1 = findKeyword(allText, T1_KW) || findKeyword(po.status, T1_KW);
+    if (kw1) {
+      tier = 1; issue = 'Note flagged: "' + kw1 + '"'; action = 'Call ' + (vendor||'vendor') + ' during business hours — ' + kw1;
+    } else if (needsCall) {
+      tier = 1; issue = 'Note requires follow-up'; action = 'Call ' + (vendor||'vendor') + ' during business hours for update';
+    } else if (shipCostUpdateFromInvoice && shipDate && shipDate <= TODAY) {
+      // "Update from invoice" orders past ship date: FOLLOW UP to check invoice for ship cost
+      tier = 'upcoming'; issue = 'Ship date ' + fmtDate(shipDate) + ' passed — check invoice for shipping cost';
+      action = 'Check ' + (vendor||'vendor') + ' invoice for shipping cost and update system';
+    } else if (shipDate && shipDate.getTime() === TODAY.getTime() && !tracking) {
+      tier = 'tracking'; issue = 'Ship date is today — tracking should be available'; action = 'Check ' + (vendor||'vendor') + ' for tracking number';
+    } else if (daysOpen !== null && daysOpen > 5 && !tracking && !(shipDate && shipDate > TODAY)) {
+      // Old PO with no tracking and no future ship date — likely missed tracking entry, not a vendor emergency.
+      // Genuine no-acknowledgment urgency is already handled upstream by PO Submitted escalation.
+      const noStatus = !statusL;
+      tier = 'tracking'; issue = 'PO placed ' + daysOpen + ' biz days ago — no tracking' + (noStatus ? ', no status' : '') + (!confirmed ? ', no confirmation' : ''); action = 'Check ' + (vendor||'vendor') + ' portal/email for tracking, or contact for shipping update';
+    } else if (shipDate && shipDate < TODAY && !tracking) {
+      tier = 'tracking'; issue = 'Ship date ' + fmtDate(shipDate) + ' passed — no tracking'; action = 'Check ' + (vendor||'vendor') + ' for tracking number';
+    } else if (statusL === 'wo placed' && !shipDate && !tracking && daysOpen !== null && daysOpen >= 3) {
+      tier = 'tracking'; issue = 'Web order placed ' + daysOpen + ' biz days ago — no ship date or tracking'; action = 'Check ' + (vendor||'vendor') + ' for tracking number';
+    }
+  }
+
+  if (!tier) return null;
+
+  return {
+    poNum, soNum, vendor, tier,
+    tierLabel: tier === 1 ? 'URGENT' : (tier === 'upcoming' ? 'FOLLOW UP' : (tier === 'tracking' ? 'TRACKING' : 'SHIPPING SOON')),
+    issue, action,
+    datePlaced: po.date_placed || '',
+    daysOpen: daysOpen || 0,
+    shipDate: po.ship_date || '',
+    daysUntil,
+    notePreview: ((po.tracking || '') + (po._extra ? ' | ' + po._extra.trim() : '')),
+    isUpcomingCharge: tier === 'soon' && isUpcomingChargeSignal,
+    chargeCard: (tier === 'soon' && isUpcomingChargeSignal) ? cardColor : '',
+    chargeAmount: (tier === 'soon' && isUpcomingChargeSignal) ? (po.order_cost || '') : '',
+  };
+}
+
+let queueItems = [];
+let dismissed = new Set();
+let sheetFilter = 'all';
+
+function checkUnknowns(po, soRow) {
+  // Universal rule: pure ??? in any PO cell means "I need this info" — flag as FOLLOW UP.
+  // Skip truly dead rows (grey done, orange cancelled, red cancelled)
+  const color = po.raw_color || 'FFFFFFFF';
+  if (GREY_DONE.has(color) || color === 'FFFF9900' || color === 'FFFF0000') return null;
+
+  const isUnknown = v => /^\s*\?+\s*$/.test(String(v || ''));
+  const fields = {
+    date_placed: 'date placed',
+    vendor: 'vendor',
+    status: 'status',
+    ship_date: 'ship date',
+    tracking: 'tracking',
+    vendor_order: 'vendor order #',
+    payment_method: 'payment method',
+    order_cost: 'order cost',
+    ship_cost: 'ship cost',
+    tax: 'tax',
+  };
+  const missing = [];
+  for (const k in fields) if (isUnknown(po[k])) missing.push(fields[k]);
+  if (!missing.length) return null;
+
+  const poMatch = po.col_a && po.col_a.match(/\b(\d{4,6})(\.0)?\b/);
+  const poNum = poMatch ? poMatch[1] : (po.col_a || '').replace('.0','');
+  const vendor = po.vendor || '';
+  const soNum = soRow ? soRow.col_a : '';
+  const list = missing.join(', ');
+  return {
+    poNum, soNum, vendor, tier: 'upcoming',
+    tierLabel: 'FOLLOW UP',
+    issue: 'Missing ' + list,
+    action: 'Find and fill in ' + list,
+    datePlaced: po.date_placed || '',
+    daysOpen: 0,
+    shipDate: po.ship_date || '',
+    daysUntil: null,
+    notePreview: '',
+  };
+}
+
+function buildQueue() {
+  const blocks = parseBlocks();
+  const items = [];
+  for (const block of blocks) {
+    for (const po of block.pos) {
+      if (dismissed.has(po.col_a)) continue;
+      let r = classifyPO(po, block.so);
+      if (!r) r = checkUnknowns(po, block.so);
+      if (r) {
+        r.vendorOrder = String(po.vendor_order || '').replace(/\.0$/, '').trim();
+        items.push(r);
+      }
+    }
+  }
+  // Add payment reminders from SO rows
+  const payItems = buildPaymentReminders();
+  for (const p of payItems) items.push(p);
+
+  const tierOrder = {1: 0, 'place': 1, 'upcoming': 2, 'soon': 3, 'tracking': 4};
+  items.sort((a,b) => {
+    const ta = tierOrder[a.tier] ?? 99;
+    const tb = tierOrder[b.tier] ?? 99;
+    if (ta !== tb) return ta - tb;
+    // Within same tier: sort by ship date soonest first, then date placed oldest first
+    const sa = parseDate((a.shipDate || '').trim());
+    const sb = parseDate((b.shipDate || '').trim());
+    if (sa && sb) return sa - sb;
+    if (sa) return -1;
+    if (sb) return 1;
+    const da = parseDate(a.datePlaced) || new Date(9999,0,1);
+    const db = parseDate(b.datePlaced) || new Date(9999,0,1);
+    return da - db;
+  });
+  return items;
+}
+
+// Extract a dollar amount from a free-form cell like "GREEN 198.82", "ACH 5,122.90", or "2249.5".
+function parseAmount(s) {
+  if (s == null) return 0;
+  const m = String(s).match(/(-?[\d,]+(?:\.\d+)?)/);
+  if (!m) return 0;
+  return parseFloat(m[1].replace(/,/g, '')) || 0;
+}
+
+function fmtMoney(n) {
+  return '$' + (n || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function buildInvoiceReady() {
+  const blocks = parseBlocks();
+  const results = [];
+  for (const block of blocks) {
+    if (!block.so) continue;
+    const soColor = block.so.raw_color || '';
+    // Purple SOs only (not yet invoiced)
+    if (soColor !== 'FFB4A7D6' && soColor !== 'FFD9D2E9') continue;
+    // Skip if any POs are still white (active/unshipped) or partial ship (more shipments coming)
+    const notDone = block.pos.filter(po =>
+      (po.raw_color || '') === 'FFFFFFFF' ||
+      /partial\s*ship/i.test(po.status || '')
+    );
+    if (notDone.length) continue;
+    // Get cyan POs with tracking
+    const cyanPOs = block.pos.filter(po => po.raw_color === 'FF00FFFF');
+    if (!cyanPOs.length) continue;
+    // Cyan is the buyer's authoritative "shipped + entered" signal.
+    // Don't second-guess the tracking format here — any non-empty tracking cell counts.
+    // (Strict carrier-pattern check still applies on non-cyan rows elsewhere.)
+    const allHaveTracking = cyanPOs.every(po => (po.tracking || '').trim() !== '');
+    if (!allHaveTracking) continue;
+    // Dollar amount lives in column D of the SO row only — never inferred from PO costs.
+    const dollars = parseAmount(block.so.status);
+    results.push({
+      soNum: block.so.col_a,
+      datePlaced: block.so.date_placed || '',
+      dollars: dollars,
+      pos: cyanPOs.map(po => ({
+        poNum: (po.col_a.match(/\b(\d{4,6})(\.0)?\b/) || [])[1] || po.col_a,
+        vendor: po.vendor || '',
+        tracking: (po.tracking || '').substring(0, 60),
+        status: po.status || '',
+      })),
+    });
+  }
+  return results;
+}
+
+function buildPaymentReminders() {
+  const blocks = parseBlocks();
+  const items = [];
+  for (const block of blocks) {
+    if (!block.so) continue;
+    const so = block.so;
+    // Status-driven: "acknowledged, pay before ship" or similar
+    if (!/pay before ship/i.test(so.status || '')) continue;
+    // Skip if tracking exists — tracking means status has effectively changed
+    if (hasTracking(so.tracking)) continue;
+    const shipDate = parseDate(so.ship_date);
+    const placedDate = parseDate(so.date_placed);
+    const soMatch = so.col_a.match(/\b(\d{4,6})\b/);
+    const soNum = soMatch ? soMatch[1] : so.col_a;
+    const vendor = so.vendor || '';
+    const daysUntil = (shipDate && shipDate > TODAY) ? bizDaysBetween(TODAY, shipDate) : 0;
+    if (dismissed.has('pay-' + soNum)) continue;
+
+    // Determine urgency: if ship date exists, use ship date proximity (1 biz day before).
+    // Only fall back to date_placed when there's no ship date.
+    let lateMsg = '';
+    let isUrgent = false;
+    if (shipDate) {
+      const reminderStart = subtractBizDays(shipDate, 1);
+      if (TODAY >= reminderStart) {
+        isUrgent = true;
+        lateMsg = daysUntil > 0 ? ' — payment due in ' + daysUntil + ' biz day' + (daysUntil===1?'':'s') : ' — payment due now';
+      } else {
+        lateMsg = ' — payment due 1 biz day before ship date';
+      }
+    } else if (placedDate) {
+      const daysSincePlaced = bizDaysBetween(placedDate, TODAY);
+      if (daysSincePlaced > 1) {
+        lateMsg = ' — PO sent ' + daysSincePlaced + ' biz days ago, no ship date to target payment';
+        isUrgent = true;
+      } else if (daysSincePlaced === 1) {
+        lateMsg = ' — PO sent yesterday, no ship date yet';
+        isUrgent = true;
+      } else {
+        lateMsg = ' — PO sent today';
+      }
+    }
+    const shipInfo = shipDate ? ' | Ships ' + fmtDate(shipDate) + (daysUntil > 0 ? ' (' + daysUntil + ' biz day' + (daysUntil===1?'':'s') + ' away)' : ' (TODAY)') : '';
+    items.push({
+      poNum: 'pay-' + soNum,
+      soNum: soNum,
+      vendor: vendor,
+      tier: isUrgent ? 1 : 'upcoming',
+      tierLabel: isUrgent ? 'URGENT' : 'UPCOMING',
+      issue: 'Acknowledged, pay before ship' + lateMsg + shipInfo,
+      action: 'Call ' + (cleanVendorName(vendor) || 'vendor') + ' sales rep and provide payment',
+      datePlaced: so.date_placed || '',
+      daysOpen: 0,
+      shipDate: so.ship_date || '',
+      daysUntil: daysUntil,
+      notePreview: (so.tracking || ''),
+    });
+  }
+  return items;
+}
+
+function regenerateQueue() {
+  dismissed.clear();
+  reloadFile(function() {
+    queueItems = buildQueue();
+    renderQueue();
+    renderSales();
+    renderSheet();
+  });
+}
+
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderQueue() {
+  const t1 = queueItems.filter(i => i.tier===1);
+  const tp = queueItems.filter(i => i.tier==='place');
+  const tu = queueItems.filter(i => i.tier==='upcoming');
+  const ts = queueItems.filter(i => i.tier==='soon');
+  const tk = queueItems.filter(i => i.tier==='tracking');
+
+  const invoiceReady = buildInvoiceReady();
+
+  document.getElementById('count-urgent').textContent = t1.length;
+  document.getElementById('count-place').textContent = tp.length;
+  document.getElementById('count-upcoming').textContent = tu.length;
+  document.getElementById('count-soon').textContent = ts.length;
+  document.getElementById('count-tracking').textContent = tk.length;
+  document.getElementById('count-invoice').textContent = invoiceReady.length;
+  const totalInvoiceDollars = invoiceReady.reduce((sum, so) => sum + (so.dollars || 0), 0);
+  document.getElementById('money-invoice').textContent = fmtMoney(totalInvoiceDollars);
+  document.getElementById('tab-queue-count').textContent = queueItems.length + invoiceReady.length;
+
+  function renderQueueCard(item, cls) {
+    var isChecked = _checkedOff[item.poNum] || false;
+    let s = '<div class="queue-card ' + cls + (isChecked ? ' checked-off' : '') + '">';
+      // checkbox col
+      s += '<div style="display:flex;align-items:center"><input type="checkbox" class="card-check" ' + (isChecked ? 'checked ' : '') + 'onchange="toggleCheck(\'' + esc(item.poNum) + '\',this)" data-po="' + esc(item.poNum) + '"></div>';
+      // left col
+      s += '<div>';
+      s += '<div class="card-po-num">PO ' + esc(item.poNum) + '</div>';
+      if (item.vendorOrder) s += '<div class="card-vendor-order">' + esc(item.vendorOrder) + '</div>';
+      if (item.soNum) s += '<div class="card-so-ref">' + esc(item.soNum) + '</div>';
+      s += '<div class="card-vendor-name">' + esc(item.vendor) + '</div>';
+      s += '<div class="card-placed">' + esc(item.datePlaced) + '</div>';
+      s += '</div>';
+      // middle col
+      s += '<div>';
+      if (item.isPause) s += '<span class="pause-badge">PAUSE</span> ';
+      if (item.isEnterSystem) s += '<span class="enter-system-badge">ENTER IN SYSTEM</span> ';
+      if (item.isShipCostUnknown) s += '<span class="ship-cost-badge">SHIP COST UNKNOWN</span> ';
+      if (item.isUpdateFromInvoice) s += '<span class="update-invoice-badge">UPDATE FROM INVOICE</span> ';
+      if (item.isAwaitingCallback) s += '<span class="callback-badge">AWAITING CALLBACK</span> ';
+      if (item.isCallbackDue) s += '<span class="callback-due-badge">CALLBACK DUE</span> ';
+      var ov = _queueOverrides[item.poNum] || {};
+      s += '<div class="card-issue editable-queue" onclick="editQueueField(this,\'' + esc(item.poNum) + '\',\'issue\')" title="Click to edit">' + esc(ov.issue || item.issue) + '</div>';
+      s += '<div class="card-action"><span class="arrow">&#8594;</span><span class="editable-queue" onclick="editQueueField(this,\'' + esc(item.poNum) + '\',\'action\')" title="Click to edit">' + esc(ov.action || item.action) + '</span></div>';
+      var cleanedNote = (item.notePreview || '')
+        .replace(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g, '')
+        .replace(/\s*\|\s*\|\s*/g, ' | ')
+        .replace(/^\s*\|\s*|\s*\|\s*$/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+      if (cleanedNote) s += '<div class="card-note' + (item.isPause ? ' pause-note' : (item.isEnterSystem ? ' enter-system-note' : (item.isUpdateFromInvoice ? ' update-invoice-note' : ((item.isAwaitingCallback || item.isCallbackDue) ? ' callback-note' : '')))) + '">' + esc(cleanedNote) + '</div>';
+      s += '</div>';
+      // right col
+      s += '<div class="card-right">';
+      if (item.daysOpen > 0) {
+        s += '<div class="days-badge"><div class="days-num">' + item.daysOpen + '</div><div class="days-lbl">days open</div></div>';
+      } else if (item.daysUntil !== null) {
+        s += '<div class="days-badge"><div class="days-num">' + item.daysUntil + '</div><div class="days-lbl">days to ship</div></div>';
+      }
+      s += '<button class="btn-dismiss" onclick="dismiss(this.dataset.po)" data-po="' + esc(item.poNum) + '">Dismiss</button>';
+      s += '</div></div>';
+    return s;
+  }
+
+  function renderTier(items, cls, label) {
+    if (!items.length) return '';
+    let s = '<div class="tier-section ' + cls + '">';
+    s += '<div class="tier-header">';
+    s += '<div class="tier-dot"></div>';
+    s += '<span class="tier-title">' + label + '</span>';
+    s += '<span class="tier-count">' + items.length + ' item' + (items.length!==1?'s':'') + '</span>';
+    s += '</div>';
+    if (cls === 'ts') {
+      const upcoming = items.filter(i => i.isUpcomingCharge);
+      const prepaid = items.filter(i => !i.isUpcomingCharge);
+      if (upcoming.length) {
+        s += '<div class="sub-tier sub-upcoming"><span class="sub-tier-title">UPCOMING CHARGES</span><span class="sub-tier-hint">card runs on ship date</span><span class="sub-tier-count">' + upcoming.length + '</span></div>';
+        for (const item of upcoming) {
+          const card = item.chargeCard || 'CARD';
+          const amt = (item.chargeAmount || '').toString().trim();
+          const amtTxt = amt ? amt + ' (approx — ship cost TBD)' : 'amount TBD — ship cost TBD';
+          s += '<div class="charge-row"><span class="charge-card charge-card-' + card.toLowerCase() + '">' + esc(card) + '</span><span class="charge-amount">' + esc(amtTxt) + '</span></div>';
+          s += renderQueueCard(item, cls);
+        }
+      }
+      if (prepaid.length) {
+        s += '<div class="sub-tier sub-prepaid"><span class="sub-tier-title">PREPAID</span><span class="sub-tier-hint">no charge pending</span><span class="sub-tier-count">' + prepaid.length + '</span></div>';
+        for (const item of prepaid) s += renderQueueCard(item, cls);
+      }
+    } else {
+      for (const item of items) s += renderQueueCard(item, cls);
+    }
+    return s + '</div>';
+  }
+
+  function renderInvoice(items) {
+    if (!items.length) return '';
+    const tierTotal = items.reduce((sum, so) => sum + (so.dollars || 0), 0);
+    let s = '<div class="tier-section ti">';
+    s += '<div class="tier-header">';
+    s += '<div class="tier-dot"></div>';
+    s += '<span class="tier-title">READY TO INVOICE</span>';
+    s += '<span class="tier-count">' + items.length + ' SO' + (items.length!==1?'s':'') + '</span>';
+    s += '<span class="tier-money">' + fmtMoney(tierTotal) + ' on the table</span>';
+    s += '</div>';
+    for (const so of items) {
+      var soChecked = _checkedOff['so_' + so.soNum] || false;
+      s += '<div class="queue-card ti' + (soChecked ? ' checked-off' : '') + '">';
+      s += '<div style="display:flex;align-items:center"><input type="checkbox" class="card-check" ' + (soChecked ? 'checked ' : '') + 'onchange="toggleCheck(\'' + esc('so_' + so.soNum) + '\',this)"></div>';
+      s += '<div>';
+      s += '<div class="card-po-num" style="color:#7c3aed">' + esc(so.soNum) + '</div>';
+      s += '<div class="card-placed">' + esc(so.datePlaced) + '</div>';
+      if (so.dollars > 0) s += '<div class="so-money">' + fmtMoney(so.dollars) + '</div>';
+      s += '</div>';
+      s += '<div>';
+      for (const po of so.pos) {
+        s += '<div style="margin-bottom:4px">';
+        s += '<span style="font-weight:600;font-size:12px">PO ' + esc(po.poNum) + '</span>';
+        s += ' <span style="color:#6b7280;font-size:11px">' + esc(po.vendor) + '</span>';
+        s += ' <span style="color:#9ca3af;font-size:11px;font-style:italic">' + esc(po.tracking) + '</span>';
+        s += '</div>';
+      }
+      s += '</div>';
+      s += '<div class="card-right">';
+      s += '<div class="days-badge"><div class="days-num" style="color:#7c3aed">' + so.pos.length + '</div><div class="days-lbl">PO' + (so.pos.length!==1?'s':'') + '</div></div>';
+      s += '</div></div>';
+    }
+    return s + '</div>';
+  }
+
+  const body = document.getElementById('queue-body');
+  const allEmpty = !queueItems.length && !invoiceReady.length;
+  if (allEmpty) {
+    body.innerHTML = '<div class="empty-state"><div class="empty-icon">&#10003;</div>No items in queue &mdash; all orders are in good shape!</div>';
+  } else {
+    body.innerHTML = renderTier(t1,'t1','URGENT') + renderTier(tp,'tp','NEED TO PLACE') + renderTier(tu,'tu','FOLLOW UP') + renderTier(ts,'ts','SHIPPING SOON') + renderTier(tk,'tk','TRACKING') + renderInvoice(invoiceReady, 'READY TO INVOICE');
+  }
+}
+
+function toggleCheck(poNum, cb) {
+  _checkedOff[poNum] = cb.checked;
+  var card = cb.closest('.queue-card');
+  if (cb.checked) card.classList.add('checked-off');
+  else card.classList.remove('checked-off');
+}
+
+function dismiss(poNum) {
+  dismissed.add(String(poNum));
+  queueItems = queueItems.filter(i => String(i.poNum) !== String(poNum));
+  renderQueue();
+}
+
+function editQueueField(el, poNum, field) {
+  if (el.querySelector('input')) return;
+  const current = el.textContent.trim();
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = current;
+  input.style.cssText = 'width:100%;font:inherit;padding:2px 4px;border:1px solid #2563eb;border-radius:4px;outline:none;';
+  el.textContent = '';
+  el.appendChild(input);
+  input.focus();
+  input.select();
+  function commit() {
+    const val = input.value.trim();
+    if (val !== current) {
+      if (!_queueOverrides[poNum]) _queueOverrides[poNum] = {};
+      _queueOverrides[poNum][field] = val;
+    }
+    el.textContent = val || current;
+  }
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { input.value = current; input.blur(); }
+  });
+}
+
+// Maps from RAW_DATA field name to column index (0-based)
+const FIELD_COLS = ['col_a','date_placed','vendor','status','ship_date','tracking','vendor_order','payment_method','order_cost','ship_cost','tax'];
+let editCount = 0;
+
+function filterSheet(f, btn) {
+  sheetFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  renderSheet();
+}
+
+function renderSheet() {
+  const search = (document.getElementById('sheetSearch').value || '').toLowerCase();
+  const tbody = document.getElementById('sheet-body');
+  let html = '', count = 0;
+
+  RAW_DATA.forEach((row, idx) => {
+    if (row.type === 'blank') {
+      html += '<tr class="blank-row"><td colspan="12"></td></tr>';
+      return;
+    }
+    const color = row.raw_color || 'FFFFFFFF';
+    const isDone = GREY_DONE.has(color) || color === 'FF000000';
+
+    if (sheetFilter === 'active' && isDone) return;
+    if (sheetFilter === 'done' && !isDone) return;
+
+    if (search) {
+      const txt = [row.col_a, row.vendor, row.status, row.tracking, row.vendor_order, row.order_cost].join(' ').toLowerCase();
+      if (!txt.includes(search)) return;
+    }
+
+    // Detect note rows: not an SO, not a PO number — everything else is a note
+    const looksLikePO = row.col_a && (new RegExp('^[0-9]+$').test(row.col_a.trim()) || /^line\s/i.test(row.col_a.trim()) || /PO-/i.test(row.col_a.trim()) || /^1V\s/i.test(row.col_a.trim()));
+    const isNote = !row.is_so && !looksLikePO;
+    const rowClass = row.is_so ? 'so-row' : (isNote ? 'note-row' : '');
+    const bg = row.bg || '#fff';
+    const tc = row.text || '#000';
+
+    html += '<tr class="' + rowClass + '" data-idx="' + idx + '" style="background:' + bg + ';color:' + tc + '">';
+    html += '<td class="row-num">' + (count + 1) + '</td>';
+
+    if (isNote) {
+      const parts = [row.col_a, row.vendor, row.status, row.tracking, row.vendor_order, row.payment_method, row.order_cost, row.ship_cost, row.tax].filter(Boolean);
+      const noteText = parts.join('  •  ');
+      html += '<td colspan="11" style="white-space:normal;max-width:none;overflow:visible;font-weight:400;font-style:italic;color:#6b7280;font-size:12px;line-height:1.5;padding:6px 14px" class="editable" data-idx="' + idx + '" data-field="col_a" onclick="startEdit(this)">' + esc(noteText) + '</td>';
+    } else {
+      const editable = !row.is_so;
+      FIELD_COLS.forEach((field, colIdx) => {
+        const val = row[field] || '';
+        const isModified = row._modified && row._modified[field];
+        const editClass = editable ? ' editable' + (isModified ? ' modified' : '') : '';
+        const align = colIdx === 3 ? ' style="text-align:center"' : '';
+        const dataAttrs = editable ? ' data-idx="' + idx + '" data-field="' + field + '"' : '';
+        const onclick = editable ? ' onclick="startEdit(this)"' : '';
+        html += '<td class="' + editClass.trim() + '"' + align + dataAttrs + onclick + ' title="' + esc(val) + '">' + esc(val) + '</td>';
+      });
+    }
+
+    html += '</tr>';
+    count++;
+  });
+
+  tbody.innerHTML = html;
+  document.getElementById('tab-sheet-count').textContent = count;
+}
+
+function startEdit(td) {
+  if (td.classList.contains('editing')) return;
+  const rowIdx = parseInt(td.dataset.idx);
+  const field = td.dataset.field;
+  if (!field || isNaN(rowIdx)) return;
+  // For note cells, use displayed text (data may span multiple fields)
+  const isNoteCell = td.classList.contains('note-cell');
+  const current = isNoteCell ? td.textContent.trim() : (RAW_DATA[rowIdx][field] || '');
+  // For note cells, figure out which field actually holds the text
+  const saveField = isNoteCell
+    ? (RAW_DATA[rowIdx].tracking ? 'tracking' : 'col_a')
+    : field;
+  td.classList.add('editing');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = current;
+  td.textContent = '';
+  td.appendChild(input);
+  input.focus();
+  input.select();
+
+  function commit() {
+    const newVal = input.value.trim();
+    if (newVal !== current) {
+      if (!RAW_DATA[rowIdx]._modified) RAW_DATA[rowIdx]._modified = {};
+      RAW_DATA[rowIdx]._modified[saveField] = true;
+      RAW_DATA[rowIdx][saveField] = newVal;
+      editCount++;
+      updateSaveBar();
+    }
+    td.classList.remove('editing');
+    if (newVal !== current) td.classList.add('modified');
+    td.textContent = newVal || current;
+    td.title = newVal || current;
+  }
+
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { input.value = current; input.blur(); }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      input.blur();
+      // Move to next editable cell
+      const tds = Array.from(td.closest('tr').querySelectorAll('td.editable'));
+      const i = tds.indexOf(td);
+      if (e.shiftKey && i > 0) tds[i-1].click();
+      else if (!e.shiftKey && i < tds.length-1) tds[i+1].click();
+    }
+  });
+}
+
+function updateSaveBar() {
+  const bar = document.getElementById('saveBar');
+  if (editCount > 0) {
+    bar.classList.remove('hidden');
+    document.getElementById('saveBarMsg').textContent = editCount + ' unsaved change' + (editCount !== 1 ? 's' : '');
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+
+function discardEdits() {
+  RAW_DATA.forEach(row => { delete row._modified; });
+  editCount = 0;
+  updateSaveBar();
+  renderSheet();
+}
+
+function exportEdits() {
+  const edited = RAW_DATA.filter(r => r._modified);
+  if (!edited.length) return;
+  const headers = ['Order/Line','Date Placed','Vendor','Status','Ship Date','Tracking/Notes','Vendor Order#','Payment Method','Order Cost','Ship Cost','Tax'];
+  const rows = [headers.join(',')];
+  edited.forEach(r => {
+    const vals = FIELD_COLS.map(f => {
+      const v = String(r[f] || '').replace(/"/g, '""');
+      return '"' + v + '"';
+    });
+    rows.push(vals.join(','));
+  });
+  const blob = new Blob([rows.join('\n')], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'buyers_view_edits.csv';
+  a.click();
+}
+
+let salesFilter = 'all';
+function filterSales(f, btn) {
+  salesFilter = f;
+  btn.parentElement.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  renderSales();
+}
+
+function extractRep(soNum) {
+  // Rep initials prefix on the SO row's col A (e.g. "EA 153569 ATOM1...").
+  // Rows like "line 1, 3 13587 WO" have no rep prefix → bucket as OTHER.
+  const m = String(soNum || '').trim().match(/^([A-Z]{2,3})\s+\S/);
+  return m ? m[1].toUpperCase() : 'OTHER';
+}
+
+let selectedRep = null;
+
+function selectRep(rep) {
+  selectedRep = rep;
+  renderSales();
+}
+
+function clearRep() {
+  selectedRep = null;
+  renderSales();
+}
+
+function renderSales() {
+  const blocks = parseBlocks();
+  const search = (document.getElementById('salesSearch').value || '').toLowerCase();
+  const repGroups = {};
+  let total = 0;
+
+  for (const block of blocks) {
+    if (!block.so) continue;
+    const soColor = block.so.raw_color || '';
+    if (soColor !== 'FF000000' && soColor !== 'FFB4A7D6' && soColor !== 'FFD9D2E9') continue;
+
+    const soNum = block.so.col_a || '';
+    const dollars = parseAmount(block.so.status);
+    const displayPOs = block.pos.filter(po => !GREY_DONE.has(po.raw_color || ''));
+    const isBlack = soColor === 'FF000000';
+
+    // Black SO + all POs grey = fully invoiced & shipped, no action — hide entirely
+    if (isBlack && displayPOs.length === 0) continue;
+
+    // For "all aqua" classification, orange (vendor-cancelled) rows are skipped —
+    // their replacement is in displayPOs and will be aqua if good.
+    const classifyPOs = displayPOs.filter(po => (po.raw_color || '') !== 'FFFF9900');
+    const allAqua = classifyPOs.length > 0 && classifyPOs.every(po => (po.raw_color || '') === 'FF00FFFF');
+
+    let statusCls, statusLabel, icon;
+    if (isBlack) {
+      statusCls = 'prepaid';
+      statusLabel = 'Prepaid';
+      icon = '&#128176;';
+    } else if (allAqua) {
+      statusCls = 'complete';
+      statusLabel = 'Complete';
+      icon = '&#10003;';
+    } else {
+      statusCls = 'active';
+      statusLabel = 'Active';
+      icon = '&#9654;';
+    }
+
+    if (salesFilter === 'active' && statusCls !== 'active') continue;
+    if (salesFilter === 'complete' && statusCls !== 'complete') continue;
+    if (salesFilter === 'prepaid' && statusCls !== 'prepaid') continue;
+
+    const searchText = [soNum, ...block.pos.map(po => [po.vendor, po.tracking, po.status].join(' '))].join(' ').toLowerCase();
+    if (search && !searchText.includes(search)) continue;
+
+    const soDate = block.so.date_placed || '';
+    const poCount = displayPOs.length;
+    const shippedCount = displayPOs.filter(po => hasTracking(po.tracking, po.ship_date)).length;
+
+    let card = '';
+    card += '<div class="so-card ' + statusCls + '">';
+    card += '<div class="so-card-header" onclick="this.parentElement.querySelector(\'.so-card-lines\').classList.toggle(\' hidden\')">';
+    card += '<div class="so-card-left">';
+    card += '<div class="so-card-icon">' + icon + '</div>';
+    card += '<div><div class="so-card-so">' + esc(soNum) + '</div>';
+    card += '<div class="so-card-date">' + esc(soDate) + '</div></div>';
+    card += '</div>';
+    card += '<div class="so-card-right">';
+    if (dollars > 0) card += '<div class="so-card-money">' + fmtMoney(dollars) + '</div>';
+    card += '<span class="so-card-status ' + statusCls + '">' + statusLabel + '</span>';
+    card += '</div>';
+    card += '</div>';
+    card += '<div class="so-card-lines">';
+    card += '<div class="so-line-header"><span>Vendor</span><span>Ship Date</span><span>Status</span></div>';
+
+    for (const po of displayPOs) {
+      const poColor = po.raw_color || '';
+      const isDone = poColor === 'FF000000';
+      const vendor = po.vendor || '';
+      const trk = po.tracking || '';
+      const hasTrk = hasTracking(trk, po.ship_date);
+      const info = hasTrk ? trk.substring(0, 60) : (po.status || 'Pending');
+      const shipDt = po.ship_date || '';
+
+      card += '<div class="so-line' + (isDone ? ' so-line-done' : '') + '">';
+      card += '<div class="so-line-vendor">' + esc(vendor) + '</div>';
+      card += '<div class="so-line-ship">' + esc(shipDt) + '</div>';
+      card += '<div class="so-line-info' + (hasTrk ? ' has-tracking' : '') + '">' + esc(info) + '</div>';
+      card += '</div>';
+    }
+
+    card += '</div>';
+    card += '<div class="so-card-footer">';
+    card += '<span>' + poCount + ' line' + (poCount!==1?'s':'') + '</span>';
+    card += '<span>' + shippedCount + ' shipped</span>';
+    card += '</div>';
+    card += '</div>';
+
+    const rep = extractRep(soNum);
+    if (!repGroups[rep]) repGroups[rep] = { 'active': [], 'complete': [], 'prepaid': [] };
+    repGroups[rep][statusCls].push({ card, dollars });
+    total++;
+  }
+
+  // Sort each rep/bucket by dollar value, highest first. Flatten to HTML strings.
+  for (const rep in repGroups) {
+    for (const k of ['active', 'complete', 'prepaid']) {
+      repGroups[rep][k].sort((a, b) => (b.dollars || 0) - (a.dollars || 0));
+      repGroups[rep][k] = repGroups[rep][k].map(o => o.card);
+    }
+  }
+
+  // Sort: EA first (most common), then other 2-3 letter reps alphabetically, OTHER last.
+  const reps = Object.keys(repGroups).sort((a, b) => {
+    if (a === 'EA') return -1;
+    if (b === 'EA') return 1;
+    if (a === 'OTHER') return 1;
+    if (b === 'OTHER') return -1;
+    return a.localeCompare(b);
+  });
+
+  let html = '';
+  if (!selectedRep) {
+    // Tile view — one box per rep, click to drill in
+    html += '<div class="rep-tile-grid">';
+    let anyTiles = false;
+    for (const rep of reps) {
+      const g = repGroups[rep];
+      const count = g['active'].length + g['complete'].length + g['prepaid'].length;
+      if (!count) continue;
+      anyTiles = true;
+      html += '<button class="rep-tile" onclick="selectRep(\'' + esc(rep) + '\')">';
+      html += '<div class="rep-tile-name">' + esc(rep) + '</div>';
+      html += '<div class="rep-tile-count">' + count + '</div>';
+      html += '<div class="rep-tile-sub">order' + (count === 1 ? '' : 's') + '</div>';
+      html += '</button>';
+    }
+    html += '</div>';
+    if (!anyTiles) html = '<div class="empty-state">No matching orders</div>';
+  } else {
+    // Drill-down view for a single rep
+    html += '<button class="rep-back-btn" onclick="clearRep()">&larr; Back to all reps</button>';
+    const g = repGroups[selectedRep];
+    const repTotal = g ? g['active'].length + g['complete'].length + g['prepaid'].length : 0;
+    if (!g || !repTotal) {
+      html += '<div class="rep-header"><span class="rep-title">' + esc(selectedRep) + '</span><span class="rep-count">0</span></div>';
+      html += '<div class="empty-state">No matching orders</div>';
+    } else {
+      html += '<div class="rep-header"><span class="rep-title">' + esc(selectedRep) + '</span><span class="rep-count">' + repTotal + '</span></div>';
+      html += '<div class="sales-grid">' + g['complete'].join('') + g['active'].join('') + g['prepaid'].join('') + '</div>';
+    }
+  }
+
+  document.getElementById('tab-sales-count').textContent = total;
+  document.getElementById('sales-body').innerHTML = html;
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('view-' + name).classList.add('active');
+}
+
+function newFile() {
+  document.getElementById('app-container').style.display = 'none';
+  document.getElementById('upload-overlay').classList.remove('hidden');
+  document.getElementById('file-input').value = '';
+}
+
+// App starts when user uploads a file — see startApp()
+</script>
+</body>
+</html>
