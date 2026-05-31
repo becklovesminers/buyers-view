@@ -900,7 +900,7 @@ function parseBlocks() {
     if (row.is_so) {
       if (curSO || curPOs.length) blocks.push({so: curSO, pos: curPOs});
       curSO = row; curPOs = [];
-    } else if (!row.col_a || (row.col_a && !/^\d{4,6}(\.\d)?$/.test(row.col_a.trim()) && !/^line\s/i.test(row.col_a.trim()) && !/PO-/i.test(row.col_a.trim()) && !/^1V\s/i.test(row.col_a.trim()))) {
+    } else if (!row.col_a || (row.col_a && !/^\d{4,6}(\.\d)?$/.test(row.col_a.trim()) && !/^lines?\s/i.test(row.col_a.trim()) && !/PO-/i.test(row.col_a.trim()) && !/^1V\s/i.test(row.col_a.trim()))) {
       if (curPOs.length) {
         const last = curPOs[curPOs.length-1];
         const noteText = row.tracking || row.col_a || '';
@@ -1097,7 +1097,7 @@ function classifyPO(po, soRow) {
   const poNum = poMatch ? poMatch[1] : po.col_a.replace('.0','');
   const vendor = po.vendor || '';
   const soNum = soRow ? soRow.col_a : '';
-  const noPONumber = /^line\s/i.test(po.col_a.trim()) && !poMatch;
+  const noPONumber = /^lines?\s/i.test(po.col_a.trim()) && !poMatch;
 
   // PAUSE NEED INFO — order needs placing but is blocked pending more information (check before generic noPONumber)
   const isPause = /pause.?need.?info/i.test(statusL);
@@ -1899,7 +1899,7 @@ function renderSheet() {
     }
 
     // Detect note rows: not an SO, not a PO number — everything else is a note
-    const looksLikePO = row.col_a && (new RegExp('^[0-9]+$').test(row.col_a.trim()) || /^line\s/i.test(row.col_a.trim()) || /PO-/i.test(row.col_a.trim()) || /^1V\s/i.test(row.col_a.trim()));
+    const looksLikePO = row.col_a && (new RegExp('^[0-9]+$').test(row.col_a.trim()) || /^lines?\s/i.test(row.col_a.trim()) || /PO-/i.test(row.col_a.trim()) || /^1V\s/i.test(row.col_a.trim()));
     const isNote = !row.is_so && !looksLikePO;
     const rowClass = row.is_so ? 'so-row' : (isNote ? 'note-row' : '');
     const bg = row.bg || '#fff';
