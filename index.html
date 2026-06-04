@@ -211,6 +211,7 @@
   .callback-badge { display: inline-block; background: #d97706; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
   .callback-due-badge { display: inline-block; background: #d97706; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
   .problem-badge { display: inline-block; background: #dc2626; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .reconcile-badge { display: inline-block; background: #d97706; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
   .card-note.pause-note { color: #b45309; font-weight: 500; font-style: normal; font-size: 12px; }
   .card-note.enter-system-note { color: #0e7490; font-weight: 500; font-style: normal; font-size: 12px; }
   .card-note.update-invoice-note { color: #b45309; font-weight: 500; font-style: normal; font-size: 12px; }
@@ -948,6 +949,46 @@ function poNoteText(po, prefix) {
 
 function classifyPO(po, soRow) {
   const color = po.raw_color || 'FFFFFFFF';
+
+  // --- Ship-cost reconciliation -------------------------------------------------
+  // The ONLY rule allowed to resurface a "done" grey row. An order can ship (cyan)
+  // or even be fully invoiced to the customer (grey) before we know the actual
+  // shipping charge — we sometimes get that figure after the fact. Two explicit
+  // tokens in the ship cost cell (col I) mark that the real cost still has to be
+  // pulled and entered in the system:
+  //     ???  -> contact the vendor for the charge
+  //     FDX  -> shipped on our FedEx account; look up the cost in the FedEx portal
+  // (FDX, not FEDEX, so it never collides with lowercase "fedex" prose elsewhere.)
+  // Resolved the instant the buyer replaces the token with the real dollar amount,
+  // so a cell like "FDX 13.56" no longer flags. Applies to cyan + grey rows only.
+  if (color === 'FF00FFFF' || GREY_DONE.has(color)) {
+    const sc = (po.ship_cost || '').trim();
+    const hasAmount = /\d/.test(sc);
+    const needVendorCost = /^\?+$/.test(sc);
+    const needFedexCost = /\bfdx\b/i.test(sc) && !hasAmount;
+    if (needVendorCost || needFedexCost) {
+      const poMatch = po.col_a.match(/\b(\d{4,6})(\.0)?\b/);
+      const poNum = poMatch ? poMatch[1] : po.col_a.replace('.0','');
+      const vendor = po.vendor || '';
+      const soNum = soRow ? soRow.col_a : '';
+      const invoiced = GREY_DONE.has(color);
+      return {
+        poNum, soNum, vendor, tier: 'upcoming',
+        tierLabel: 'FOLLOW UP',
+        isReconcileShipCost: true,
+        issue: (invoiced ? 'Invoiced' : 'Shipped') + ' — actual shipping cost still needs to be reconciled',
+        action: needFedexCost
+          ? 'Look up the actual shipping charge in our FedEx account, then enter it in the system'
+          : 'Contact ' + (cleanVendorName(vendor) || 'vendor') + ' for the actual shipping charge, then enter it in the system',
+        datePlaced: po.date_placed || '',
+        daysOpen: 0,
+        shipDate: po.ship_date || '',
+        daysUntil: null,
+        notePreview: poNoteText(po, 'Ship cost: ' + sc),
+      };
+    }
+  }
+
   if (GREY_DONE.has(color)) return null;
   if (color === 'FFFF9900') return null;
   if (color === 'FF000000') return null;
@@ -980,27 +1021,9 @@ function classifyPO(po, soRow) {
   }
 
   const shipCostNeedsAction = /^\?+$/.test((po.ship_cost || '').trim());
-  if (color === 'FF00FFFF') {
-    // Cyan is normally done, but if ship cost has ??? there's still work to do
-    if (shipCostNeedsAction) {
-      const poMatch = po.col_a.match(/\b(\d{4,6})(\.0)?\b/);
-      const poNum = poMatch ? poMatch[1] : po.col_a.replace('.0','');
-      const vendor = po.vendor || '';
-      const soNum = soRow ? soRow.col_a : '';
-      return {
-        poNum, soNum, vendor, tier: 'upcoming',
-        tierLabel: 'FOLLOW UP',
-        issue: 'Shipped but ship cost unknown — need to update system',
-        action: 'Contact ' + (cleanVendorName(vendor) || 'vendor') + ' for shipping cost',
-        datePlaced: po.date_placed || '',
-        daysOpen: 0,
-        shipDate: po.ship_date || '',
-        daysUntil: null,
-        notePreview: poNoteText(po, 'Order cost: ' + (po.order_cost || '')),
-      };
-    }
-    return null;
-  }
+  // Cyan = shipped/done. A ??? ship cost here was already caught by the ship-cost
+  // reconciliation handler at the top of this function, so nothing else to do.
+  if (color === 'FF00FFFF') return null;
 
   // Non-cyan row with tracking number = not yet entered in system
   // Row should be cyan but buyer was interrupted before entering tracking in Channel/Reyvn
@@ -1701,6 +1724,7 @@ function renderQueue() {
       if (item.isEnterSystem) s += '<span class="enter-system-badge">ENTER IN SYSTEM</span> ';
       if (item.isShipCostUnknown) s += '<span class="ship-cost-badge">SHIP COST UNKNOWN</span> ';
       if (item.isUpdateFromInvoice) s += '<span class="update-invoice-badge">UPDATE FROM INVOICE</span> ';
+      if (item.isReconcileShipCost) s += '<span class="reconcile-badge">RECONCILE SHIP COST</span> ';
       if (item.isAwaitingCallback) s += '<span class="callback-badge">AWAITING CALLBACK</span> ';
       if (item.isCallbackDue) s += '<span class="callback-due-badge">CALLBACK DUE</span> ';
       var ov = _queueOverrides[item.poNum] || {};
