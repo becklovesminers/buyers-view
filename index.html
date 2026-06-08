@@ -86,6 +86,7 @@
   .tile-icon.invoice { background: #f5f3ff; }
   .tile-icon.tracking { background: #eff6ff; }
   .tile-icon.place { background: #fff7ed; }
+  .tile-icon.net30 { background: #fdf2f8; }
   .tile-num { font-size: 26px; font-weight: 700; line-height: 1; }
   .tile-num.urgent { color: #dc2626; }
   .tile-num.upcoming { color: #d97706; }
@@ -93,6 +94,7 @@
   .tile-num.invoice { color: #7c3aed; }
   .tile-num.tracking { color: #2563eb; }
   .tile-num.place { color: #ea580c; }
+  .tile-num.net30 { color: #db2777; }
   .tile-label { font-size: 12px; font-weight: 600; color: #374151; }
   .tile-sub { font-size: 11px; color: #9ca3af; margin-top: 1px; }
   .tile-money {
@@ -122,6 +124,7 @@
   .ts .tier-dot { background: #16a34a; }
   .tk .tier-dot { background: #2563eb; }
   .ti .tier-dot { background: #7c3aed; }
+  .tn .tier-dot { background: #db2777; }
   .tier-title { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; }
   .t1 .tier-title { color: #dc2626; }
   .tp .tier-title { color: #ea580c; }
@@ -129,6 +132,7 @@
   .ts .tier-title { color: #16a34a; }
   .tk .tier-title { color: #2563eb; }
   .ti .tier-title { color: #7c3aed; }
+  .tn .tier-title { color: #db2777; }
   .tier-count { font-size: 11px; color: #9ca3af; margin-left: 4px; }
 
   /* ── SUB-TIER HEADERS (used inside SHIPPING SOON) ── */
@@ -190,6 +194,8 @@
   .queue-card.ts { border-left: 3px solid #16a34a; }
   .queue-card.tk { border-left: 3px solid #2563eb; }
   .queue-card.ti { border-left: 3px solid #7c3aed; }
+  .queue-card.tn { border-left: 3px solid #db2777; }
+  .queue-card.tn.net30-overdue { border-left-width: 5px; background: #fdf2f8; }
 
   .card-po-num { font-size: 14px; font-weight: 700; color: #111827; overflow-wrap: anywhere; word-break: break-word; }
   .card-vendor-order { font-size: 12px; font-weight: 500; color: #6b7280; margin-top: 2px; overflow-wrap: anywhere; word-break: break-word; }
@@ -212,6 +218,7 @@
   .callback-due-badge { display: inline-block; background: #d97706; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
   .problem-badge { display: inline-block; background: #dc2626; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
   .reconcile-badge { display: inline-block; background: #d97706; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .backorder-badge { display: inline-block; background: #ea580c; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
   .card-note.pause-note { color: #b45309; font-weight: 500; font-style: normal; font-size: 12px; }
   .card-note.enter-system-note { color: #0e7490; font-weight: 500; font-style: normal; font-size: 12px; }
   .card-note.update-invoice-note { color: #b45309; font-weight: 500; font-style: normal; font-size: 12px; }
@@ -227,6 +234,7 @@
   .ts .days-num { color: #16a34a; }
   .tk .days-num { color: #2563eb; }
   .ti .days-num { color: #7c3aed; }
+  .tn .days-num { color: #db2777; }
   .btn-dismiss {
     font-size: 11px; font-weight: 500; color: #6b7280;
     background: #f9fafb; border: 1px solid #e5e7eb;
@@ -583,6 +591,14 @@
           <div class="tile-num tracking" id="count-tracking">0</div>
           <div class="tile-label">Tracking</div>
           <div class="tile-sub">Should have shipped — no tracking yet</div>
+        </div>
+      </div>
+      <div class="summary-tile">
+        <div class="tile-icon net30">&#128176;</div>
+        <div>
+          <div class="tile-num net30" id="count-net30">0</div>
+          <div class="tile-label">Pay Vendor</div>
+          <div class="tile-sub">NET 30 — pay within 30 days of placement</div>
         </div>
       </div>
       <div class="summary-tile">
@@ -1125,6 +1141,26 @@ function classifyPO(po, soRow) {
   // PAUSE NEED INFO — order needs placing but is blocked pending more information (check before generic noPONumber)
   const isPause = /pause.?need.?info/i.test(statusL);
 
+  // "Partially Ordered" — the vendor only had part of the order; the rest is
+  // backordered and can't be placed until it comes back in stock. Half-placed,
+  // half still owed. Surface in NEED TO PLACE (with a BACKORDERED badge so it
+  // reads as "waiting on stock", not "go place it now") so the remaining item
+  // isn't forgotten. Status-cell driven only.
+  if (/partially ordered/i.test(statusL)) {
+    return {
+      poNum, soNum, vendor, tier: 'place',
+      tierLabel: 'NEED TO PLACE',
+      isBackordered: true,
+      issue: 'Partially ordered — remaining item(s) backordered, waiting on stock',
+      action: 'Place the rest of the order with ' + (cleanVendorName(vendor) || 'vendor') + ' once the backordered item is back in stock',
+      datePlaced: po.date_placed || '',
+      daysOpen: daysOpen || 0,
+      shipDate: po.ship_date || '',
+      daysUntil,
+      notePreview: poNoteText(po),
+    };
+  }
+
   // PO row has line + vendor but no PO number — buyer hasn't created/submitted the PO yet
   if (noPONumber && vendor) {
     const noteText = poNoteText(po);
@@ -1213,8 +1249,13 @@ function classifyPO(po, soRow) {
   // Any of these = vendor runs card on ship → UPCOMING CHARGES bucket.
   const chargeOnShip = /charges? on ship(ment)?/i.test(po.status || '');
   const pm = (po.payment_method || '').trim();
-  const isCWS = /CWS/i.test(pm);
-  const cardMatch = pm.match(/(GREEN|BROWN)/i);
+  // NET 30 is a pay-by-invoice method (peer to GREEN/BROWN/debit/ACH) — no card runs
+  // on ship. If CWS rides along on a NET 30 row it is just a col-J ship-cost reconcile
+  // note, NOT a card charge, so do not treat it as an upcoming charge. The NET 30
+  // payment obligation itself is surfaced separately in the PAY VENDOR tier.
+  const isNet30 = /net\s*30/i.test(pm);
+  const isCWS = /CWS/i.test(pm) && !isNet30;
+  const cardMatch = pm.match(/(GREEN|BROWN)/i);
   const cardColor = cardMatch ? cardMatch[1].toUpperCase() : '';
   const isUpcomingChargeSignal = isCWS || chargeOnShip || shipCostNeedsAction;
 
@@ -1549,11 +1590,28 @@ function buildQueue() {
   const payItems = buildPaymentReminders();
   for (const p of payItems) items.push(p);
 
-  const tierOrder = {1: 0, 'place': 1, 'upcoming': 2, 'soon': 3, 'tracking': 4};
+  // Add NET 30 vendor-payment obligations (independent of fulfillment state)
+  const net30Items = buildNet30Payments();
+  for (const p of net30Items) items.push(p);
+
+  const tierOrder = {1: 0, 'place': 1, 'upcoming': 2, 'soon': 3, 'tracking': 4, 'net30': 5};
   items.sort((a,b) => {
     const ta = tierOrder[a.tier] ?? 99;
     const tb = tierOrder[b.tier] ?? 99;
     if (ta !== tb) return ta - tb;
+    // PROBLEM orders: cluster same-vendor problems next to each other so the buyer
+    // can batch one call to that vendor's support. Only applies when both rows are
+    // PROBLEMs; mixed PROBLEM/other-urgent ordering falls through to the date sort.
+    if (a.isProblem && b.isProblem) {
+      const va = cleanVendorName(a.vendor || '') || '';
+      const vb = cleanVendorName(b.vendor || '') || '';
+      const vc = va.localeCompare(vb);
+      if (vc !== 0) return vc;
+    }
+    // PAY VENDOR tier: order by payment due date, soonest/most-overdue first.
+    if (a.tier === 'net30' && b.tier === 'net30') {
+      return (a._payDue ?? Infinity) - (b._payDue ?? Infinity);
+    }
     // Within same tier: sort by ship date soonest first, then date placed oldest first
     const sa = parseDate((a.shipDate || '').trim());
     const sb = parseDate((b.shipDate || '').trim());
@@ -1680,6 +1738,61 @@ function buildPaymentReminders() {
   return items;
 }
 
+// NET 30 accounts-payable tier. NET 30 in col H (payment_method) means the vendor
+// invoices us and we owe payment 30 calendar days after the order was placed (col B).
+// This is a money task, separate from order fulfillment — the same PO can be shipping
+// or already delivered (grey) while payment is still owed, so this does NOT exclude
+// dead rows. It clears ONLY when col H gains a PAID state token (e.g. "NET 30 PAID").
+// Surfaced from placement with a live countdown; overdue rows are emphasized.
+function buildNet30Payments() {
+  const blocks = parseBlocks();
+  const items = [];
+  for (const block of blocks) {
+    for (const po of block.pos) {
+      const pm = (po.payment_method || '').trim();
+      if (!/net\s*30/i.test(pm)) continue;
+      if (/paid/i.test(pm)) continue; // "NET 30 PAID" = settled, clear from tier
+      const key = 'net30-' + po.col_a.trim();
+      if (dismissed.has(key)) continue;
+      const poMatch = po.col_a.match(/\b(\d{4,6})(\.0)?\b/);
+      const poNum = poMatch ? poMatch[1] : po.col_a.replace('.0', '');
+      const soMatch = block.so ? block.so.col_a.match(/\b(\d{4,6})\b/) : null;
+      const soNum = soMatch ? soMatch[1] : '';
+      const vendor = po.vendor || '';
+      const placed = parseDate(po.date_placed);
+      const amt = parseAmount(po.order_cost);
+      let dueDate = null, daysToDue = null, dueMsg;
+      if (placed) {
+        dueDate = new Date(placed.getFullYear(), placed.getMonth(), placed.getDate() + 30);
+        daysToDue = Math.round((dueDate - TODAY) / 86400000);
+        if (daysToDue > 0) dueMsg = 'Pay vendor in ' + daysToDue + ' day' + (daysToDue === 1 ? '' : 's') + ' — due ' + fmtDate(dueDate);
+        else if (daysToDue === 0) dueMsg = 'Payment due TODAY (' + fmtDate(dueDate) + ')';
+        else dueMsg = 'OVERDUE by ' + (-daysToDue) + ' day' + (daysToDue === -1 ? '' : 's') + ' — was due ' + fmtDate(dueDate);
+      } else {
+        dueMsg = 'NET 30 — due 30 days after placement (no placement date on row)';
+      }
+      items.push({
+        poNum: key,
+        soNum, vendor,
+        tier: 'net30',
+        tierLabel: 'PAY VENDOR',
+        displayPo: poNum,
+        isNet30: true,
+        net30Overdue: daysToDue !== null && daysToDue < 0,
+        issue: dueMsg + (amt ? ' | ' + fmtMoney(amt) : ''),
+        action: 'Pay ' + (cleanVendorName(vendor) || 'vendor') + ' on NET 30 terms' + (amt ? ' (' + fmtMoney(amt) + ')' : '') + ' — mark col H "NET 30 PAID" when done',
+        datePlaced: po.date_placed || '',
+        daysOpen: 0,
+        shipDate: '',
+        daysUntil: daysToDue,
+        _payDue: dueDate ? dueDate.getTime() : Infinity,
+        notePreview: poNoteText(po),
+      });
+    }
+  }
+  return items;
+}
+
 function esc(s) {
   if (!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -1691,6 +1804,7 @@ function renderQueue() {
   const tu = queueItems.filter(i => i.tier==='upcoming');
   const ts = queueItems.filter(i => i.tier==='soon');
   const tk = queueItems.filter(i => i.tier==='tracking');
+  const tn = queueItems.filter(i => i.tier==='net30');
 
   const invoiceReady = buildInvoiceReady();
 
@@ -1699,6 +1813,7 @@ function renderQueue() {
   document.getElementById('count-upcoming').textContent = tu.length;
   document.getElementById('count-soon').textContent = ts.length;
   document.getElementById('count-tracking').textContent = tk.length;
+  document.getElementById('count-net30').textContent = tn.length;
   document.getElementById('count-invoice').textContent = invoiceReady.length;
   const totalInvoiceDollars = invoiceReady.reduce((sum, so) => sum + (so.dollars || 0), 0);
   document.getElementById('money-invoice').textContent = fmtMoney(totalInvoiceDollars);
@@ -1706,12 +1821,12 @@ function renderQueue() {
 
   function renderQueueCard(item, cls) {
     var isChecked = _checkedOff[item.poNum] || false;
-    let s = '<div class="queue-card ' + cls + (isChecked ? ' checked-off' : '') + '">';
+    let s = '<div class="queue-card ' + cls + (isChecked ? ' checked-off' : '') + (item.net30Overdue ? ' net30-overdue' : '') + '">';
       // checkbox col
       s += '<div style="display:flex;align-items:center"><input type="checkbox" class="card-check" ' + (isChecked ? 'checked ' : '') + 'onchange="toggleCheck(\'' + esc(item.poNum) + '\',this)" data-po="' + esc(item.poNum) + '"></div>';
       // left col
       s += '<div>';
-      s += '<div class="card-po-num">PO ' + esc(item.poNum) + '</div>';
+      s += '<div class="card-po-num">PO ' + esc(item.displayPo || item.poNum) + '</div>';
       if (item.vendorOrder) s += '<div class="card-vendor-order">' + esc(item.vendorOrder) + '</div>';
       if (item.soNum) s += '<div class="card-so-ref">' + esc(item.soNum) + '</div>';
       s += '<div class="card-vendor-name">' + esc(item.vendor) + '</div>';
@@ -1725,6 +1840,7 @@ function renderQueue() {
       if (item.isShipCostUnknown) s += '<span class="ship-cost-badge">SHIP COST UNKNOWN</span> ';
       if (item.isUpdateFromInvoice) s += '<span class="update-invoice-badge">UPDATE FROM INVOICE</span> ';
       if (item.isReconcileShipCost) s += '<span class="reconcile-badge">RECONCILE SHIP COST</span> ';
+      if (item.isBackordered) s += '<span class="backorder-badge">BACKORDERED</span> ';
       if (item.isAwaitingCallback) s += '<span class="callback-badge">AWAITING CALLBACK</span> ';
       if (item.isCallbackDue) s += '<span class="callback-due-badge">CALLBACK DUE</span> ';
       var ov = _queueOverrides[item.poNum] || {};
@@ -1740,7 +1856,12 @@ function renderQueue() {
       s += '</div>';
       // right col
       s += '<div class="card-right">';
-      if (item.daysOpen > 0) {
+      if (item.isNet30 && item.daysUntil !== null) {
+        var d = item.daysUntil;
+        var payNum = d < 0 ? -d : (d === 0 ? '!' : d);
+        var payLbl = d < 0 ? 'days overdue' : (d === 0 ? 'due today' : 'days to pay');
+        s += '<div class="days-badge"><div class="days-num">' + payNum + '</div><div class="days-lbl">' + payLbl + '</div></div>';
+      } else if (item.daysOpen > 0) {
         s += '<div class="days-badge"><div class="days-num">' + item.daysOpen + '</div><div class="days-lbl">days open</div></div>';
       } else if (item.daysUntil !== null) {
         s += '<div class="days-badge"><div class="days-num">' + item.daysUntil + '</div><div class="days-lbl">days to ship</div></div>';
@@ -1847,7 +1968,7 @@ function renderQueue() {
   if (allEmpty) {
     body.innerHTML = '<div class="empty-state"><div class="empty-icon">&#10003;</div>No items in queue &mdash; all orders are in good shape!</div>';
   } else {
-    body.innerHTML = renderTier(t1,'t1','URGENT') + renderTier(tp,'tp','NEED TO PLACE') + renderTier(tu,'tu','FOLLOW UP') + renderTier(ts,'ts','SHIPPING SOON') + renderTier(tk,'tk','TRACKING') + renderInvoice(invoiceReady, 'READY TO INVOICE');
+    body.innerHTML = renderTier(t1,'t1','URGENT') + renderTier(tp,'tp','NEED TO PLACE') + renderTier(tu,'tu','FOLLOW UP') + renderTier(ts,'ts','SHIPPING SOON') + renderTier(tk,'tk','TRACKING') + renderTier(tn,'tn','PAY VENDOR') + renderInvoice(invoiceReady, 'READY TO INVOICE');
   }
 }
 
