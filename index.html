@@ -1599,15 +1599,10 @@ function buildQueue() {
     const ta = tierOrder[a.tier] ?? 99;
     const tb = tierOrder[b.tier] ?? 99;
     if (ta !== tb) return ta - tb;
-    // PROBLEM orders: cluster same-vendor problems next to each other so the buyer
-    // can batch one call to that vendor's support. Only applies when both rows are
-    // PROBLEMs; mixed PROBLEM/other-urgent ordering falls through to the date sort.
-    if (a.isProblem && b.isProblem) {
-      const va = cleanVendorName(a.vendor || '') || '';
-      const vb = cleanVendorName(b.vendor || '') || '';
-      const vc = va.localeCompare(vb);
-      if (vc !== 0) return vc;
-    }
+    // NOTE: same-vendor PROBLEM clustering is handled by clusterProblems() below,
+    // AFTER this sort. It cannot live here: sorting PROBLEMs by vendor but everything
+    // else by date makes the comparator inconsistent (intransitive), so the engine
+    // produces an unpredictable order and same-vendor PROBLEMs get split apart.
     // PAY VENDOR tier: order by payment due date, soonest/most-overdue first.
     if (a.tier === 'net30' && b.tier === 'net30') {
       return (a._payDue ?? Infinity) - (b._payDue ?? Infinity);
@@ -1622,7 +1617,29 @@ function buildQueue() {
     const db = parseDate(b.datePlaced) || new Date(9999,0,1);
     return da - db;
   });
-  return items;
+  return clusterProblems(items);
+}
+
+// Stable pass over the already-sorted list: whenever we emit the first PROBLEM row
+// for a vendor, pull every later same-vendor PROBLEM row up directly behind it so the
+// buyer can batch one support call. Non-PROBLEM rows keep their date order. All PROBLEM
+// rows live in the URGENT tier, so this never drags a row across a tier boundary.
+function clusterProblems(items) {
+  const out = [];
+  const used = new Array(items.length).fill(false);
+  for (let i = 0; i < items.length; i++) {
+    if (used[i]) continue;
+    out.push(items[i]); used[i] = true;
+    if (!items[i].isProblem) continue;
+    const v = (cleanVendorName(items[i].vendor || '') || '').toLowerCase();
+    for (let j = i + 1; j < items.length; j++) {
+      if (used[j] || !items[j].isProblem) continue;
+      if ((cleanVendorName(items[j].vendor || '') || '').toLowerCase() === v) {
+        out.push(items[j]); used[j] = true;
+      }
+    }
+  }
+  return out;
 }
 
 // Extract a dollar amount from a free-form cell like "GREEN 198.82", "ACH 5,122.90", or "2249.5".
