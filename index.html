@@ -81,6 +81,7 @@
   .summary-tile:last-child { border-radius: 0 10px 10px 0; }
   .tile-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
   .tile-icon.urgent { background: #fef2f2; }
+  .tile-icon.wait { background: #f1f5f9; }
   .tile-icon.upcoming { background: #fffbeb; }
   .tile-icon.soon { background: #f0fdf4; }
   .tile-icon.invoice { background: #f5f3ff; }
@@ -89,6 +90,7 @@
   .tile-icon.net30 { background: #fdf2f8; }
   .tile-num { font-size: 26px; font-weight: 700; line-height: 1; }
   .tile-num.urgent { color: #dc2626; }
+  .tile-num.wait { color: #475569; }
   .tile-num.upcoming { color: #d97706; }
   .tile-num.soon { color: #16a34a; }
   .tile-num.invoice { color: #7c3aed; }
@@ -119,6 +121,7 @@
   }
   .tier-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
   .t1 .tier-dot { background: #dc2626; }
+  .tw .tier-dot { background: #475569; }
   .tp .tier-dot { background: #ea580c; }
   .tu .tier-dot { background: #d97706; }
   .ts .tier-dot { background: #16a34a; }
@@ -127,6 +130,7 @@
   .tn .tier-dot { background: #db2777; }
   .tier-title { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; }
   .t1 .tier-title { color: #dc2626; }
+  .tw .tier-title { color: #475569; }
   .tp .tier-title { color: #ea580c; }
   .tu .tier-title { color: #d97706; }
   .ts .tier-title { color: #16a34a; }
@@ -189,6 +193,7 @@
   }
   .queue-card:hover { border-color: #d1d5db; box-shadow: 0 1px 6px rgba(0,0,0,0.07); }
   .queue-card.t1 { border-left: 3px solid #dc2626; }
+  .queue-card.tw { border-left: 3px solid #475569; }
   .queue-card.tp { border-left: 3px solid #ea580c; }
   .queue-card.tu { border-left: 3px solid #d97706; }
   .queue-card.ts { border-left: 3px solid #16a34a; }
@@ -220,6 +225,7 @@
   .reconcile-badge { display: inline-block; background: #d97706; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
   .backorder-badge { display: inline-block; background: #ea580c; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
   .card-note.pause-note { color: #b45309; font-weight: 500; font-style: normal; font-size: 12px; }
+  .card-note.wait-note { color: #475569; font-weight: 500; font-style: normal; font-size: 12px; }
   .card-note.enter-system-note { color: #0e7490; font-weight: 500; font-style: normal; font-size: 12px; }
   .card-note.update-invoice-note { color: #b45309; font-weight: 500; font-style: normal; font-size: 12px; }
   .card-note.callback-note { color: #b45309; font-weight: 500; font-style: normal; font-size: 12px; }
@@ -229,6 +235,7 @@
   .days-num { font-size: 20px; font-weight: 700; line-height: 1; }
   .days-lbl { font-size: 10px; color: #9ca3af; margin-top: 1px; }
   .t1 .days-num { color: #dc2626; }
+  .tw .days-num { color: #475569; }
   .tp .days-num { color: #ea580c; }
   .tu .days-num { color: #d97706; }
   .ts .days-num { color: #16a34a; }
@@ -559,6 +566,14 @@
           <div class="tile-num urgent" id="count-urgent">0</div>
           <div class="tile-label">Urgent</div>
           <div class="tile-sub">Action required today</div>
+        </div>
+      </div>
+      <div class="summary-tile">
+        <div class="tile-icon wait">&#9208;</div>
+        <div>
+          <div class="tile-num wait" id="count-wait">0</div>
+          <div class="tile-label">Wait</div>
+          <div class="tile-sub">On hold — change pending before it moves forward</div>
         </div>
       </div>
       <div class="summary-tile">
@@ -1038,6 +1053,35 @@ function classifyPO(po, soRow) {
   if (color === 'FF000000') return null;
   const statusL = (po.status || '').toLowerCase().trim();
 
+  // WAIT — the customer placed the order but then changed their mind, or something
+  // has to be adjusted, before it can move forward. The order must NOT progress
+  // (don't place, don't chase tracking, don't escalate to URGENT) but it must stay
+  // visible so it isn't forgotten. This is a FULL HOLD: it wins over every other
+  // flag, so it lives above PROBLEM/URGENT and returns immediately. Status-cell
+  // driven only (taught trigger) — \bwait\b matches a standalone "WAIT" without
+  // catching "awaiting"/"waiting". Dead rows already returned null above, so a stale
+  // WAIT on a closed order can't fire.
+  if (/\bwait\b/i.test(po.status || '')) {
+    const poMatch = po.col_a.match(/\b(\d{4,6})(\.0)?\b/);
+    const poNum = poMatch ? poMatch[1] : po.col_a.replace('.0','');
+    const vendor = po.vendor || '';
+    const soNum = soRow ? soRow.col_a : '';
+    const datePlaced = parseDate(po.date_placed);
+    const daysOpen = datePlaced ? bizDaysBetween(datePlaced, TODAY) : null;
+    return {
+      poNum, soNum, vendor, tier: 'wait',
+      tierLabel: 'WAIT',
+      isWait: true,
+      issue: 'On hold — customer changed their mind or an adjustment is pending before this moves forward',
+      action: 'Confirm the change/decision with the customer (see notes), then update the order and clear WAIT',
+      datePlaced: po.date_placed || '',
+      daysOpen: daysOpen || 0,
+      shipDate: po.ship_date || '',
+      daysUntil: null,
+      notePreview: poNoteText(po),
+    };
+  }
+
   // PROBLEM — explicit cell-based escalation. Buyer puts the token "PROBLEM" in
   // col D (status) when the vendor lost the order and customer support must be
   // contacted. URGENT, top priority on any live row. Dead rows (grey/orange/black)
@@ -1181,6 +1225,28 @@ function classifyPO(po, soRow) {
       isBackordered: true,
       issue: 'Partially ordered — remaining item(s) backordered, waiting on stock',
       action: 'Place the rest of the order with ' + (cleanVendorName(vendor) || 'vendor') + ' once the backordered item is back in stock',
+      datePlaced: po.date_placed || '',
+      daysOpen: daysOpen || 0,
+      shipDate: po.ship_date || '',
+      daysUntil,
+      notePreview: poNoteText(po),
+    };
+  }
+
+  // "Paid" — buyer prepaid an unreliable vendor. Because the money is already out the
+  // door, there is NO vendor confirmation number to chase: this status is the buyer's
+  // deliberate override of the col G gate (blank col G is expected and must NOT flag).
+  // The only follow-up is tracking. Give the vendor 5 biz days from the date placed,
+  // then chase tracking until it shows up. Tracking-present cases are already handled
+  // upstream (cyan = done; non-cyan with tracking = enter-in-system TRACKING), so
+  // reaching here means there is still no tracking. Status-cell driven only.
+  if (/^paid$/i.test(statusL)) {
+    if (daysOpen === null || daysOpen < 5) return null; // grace window — vendor still has time
+    return {
+      poNum, soNum, vendor, tier: 'tracking',
+      tierLabel: 'TRACKING',
+      issue: 'Paid ' + daysOpen + ' biz days ago — no tracking yet',
+      action: 'Follow up with ' + (cleanVendorName(vendor) || 'vendor') + ' for tracking number',
       datePlaced: po.date_placed || '',
       daysOpen: daysOpen || 0,
       shipDate: po.ship_date || '',
@@ -1622,7 +1688,7 @@ function buildQueue() {
   const net30Items = buildNet30Payments();
   for (const p of net30Items) items.push(p);
 
-  const tierOrder = {1: 0, 'place': 1, 'upcoming': 2, 'soon': 3, 'tracking': 4, 'net30': 5};
+  const tierOrder = {1: 0, 'wait': 1, 'place': 2, 'upcoming': 3, 'soon': 4, 'tracking': 5, 'net30': 6};
   items.sort((a,b) => {
     const ta = tierOrder[a.tier] ?? 99;
     const tb = tierOrder[b.tier] ?? 99;
@@ -1845,6 +1911,7 @@ function esc(s) {
 
 function renderQueue() {
   const t1 = queueItems.filter(i => i.tier===1);
+  const tw = queueItems.filter(i => i.tier==='wait');
   const tp = queueItems.filter(i => i.tier==='place');
   const tu = queueItems.filter(i => i.tier==='upcoming');
   const ts = queueItems.filter(i => i.tier==='soon');
@@ -1854,6 +1921,7 @@ function renderQueue() {
   const invoiceReady = buildInvoiceReady();
 
   document.getElementById('count-urgent').textContent = t1.length;
+  document.getElementById('count-wait').textContent = tw.length;
   document.getElementById('count-place').textContent = tp.length;
   document.getElementById('count-upcoming').textContent = tu.length;
   document.getElementById('count-soon').textContent = ts.length;
@@ -1897,7 +1965,7 @@ function renderQueue() {
         .replace(/^\s*\|\s*|\s*\|\s*$/g, '')
         .replace(/\s{2,}/g, ' ')
         .trim();
-      if (cleanedNote) s += '<div class="card-note' + (item.isPause ? ' pause-note' : (item.isEnterSystem ? ' enter-system-note' : (item.isUpdateFromInvoice ? ' update-invoice-note' : ((item.isAwaitingCallback || item.isCallbackDue) ? ' callback-note' : '')))) + '">' + esc(cleanedNote) + '</div>';
+      if (cleanedNote) s += '<div class="card-note' + (item.isWait ? ' wait-note' : (item.isPause ? ' pause-note' : (item.isEnterSystem ? ' enter-system-note' : (item.isUpdateFromInvoice ? ' update-invoice-note' : ((item.isAwaitingCallback || item.isCallbackDue) ? ' callback-note' : ''))))) + '">' + esc(cleanedNote) + '</div>';
       s += '</div>';
       // right col
       s += '<div class="card-right">';
@@ -2013,7 +2081,7 @@ function renderQueue() {
   if (allEmpty) {
     body.innerHTML = '<div class="empty-state"><div class="empty-icon">&#10003;</div>No items in queue &mdash; all orders are in good shape!</div>';
   } else {
-    body.innerHTML = renderTier(t1,'t1','URGENT') + renderTier(tp,'tp','NEED TO PLACE') + renderTier(tu,'tu','FOLLOW UP') + renderTier(ts,'ts','SHIPPING SOON') + renderTier(tk,'tk','TRACKING') + renderTier(tn,'tn','PAY VENDOR') + renderInvoice(invoiceReady, 'READY TO INVOICE');
+    body.innerHTML = renderTier(t1,'t1','URGENT') + renderTier(tw,'tw','WAIT') + renderTier(tp,'tp','NEED TO PLACE') + renderTier(tu,'tu','FOLLOW UP') + renderTier(ts,'ts','SHIPPING SOON') + renderTier(tk,'tk','TRACKING') + renderTier(tn,'tn','PAY VENDOR') + renderInvoice(invoiceReady, 'READY TO INVOICE');
   }
 }
 
