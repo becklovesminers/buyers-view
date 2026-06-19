@@ -222,6 +222,7 @@
   .callback-badge { display: inline-block; background: #d97706; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
   .callback-due-badge { display: inline-block; background: #d97706; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
   .problem-badge { display: inline-block; background: #dc2626; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .rush-badge { display: inline-block; background: #b91c1c; color: #fff; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.7px; margin-bottom: 4px; box-shadow: 0 0 0 2px #fecaca; }
   .reconcile-badge { display: inline-block; background: #d97706; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
   .backorder-badge { display: inline-block; background: #ea580c; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.5px; margin-bottom: 4px; }
   .card-note.pause-note { color: #b45309; font-weight: 500; font-style: normal; font-size: 12px; }
@@ -725,12 +726,86 @@ fileInput.addEventListener('change', function() {
   if (fileInput.files.length) handleFile(fileInput.files[0]);
 });
 
+// 1-based sheet row numbers that contain a red-font cell (RUSH flag). Populated on
+// every upload by extractRedFontRows(); read by convertSheet() to set entry.font_red.
+let RED_FONT_ROWS = new Set();
+
+// Read font colors straight from the raw .xlsx, because SheetJS's free build parses
+// fills only and drops font color entirely (cell.s has no color key). A RED FONT on
+// the order-number cell is how the buyer flags a RUSH order, so we unzip the workbook
+// ourselves (ZIP central directory + DecompressionStream) and walk the style chain:
+//   sheet cell  --s=N-->  cellXfs[N]  --fontId-->  fonts[fontId]  --> <color rgb=...>
+// Any row with at least one red-font cell is returned in a Set of 1-based row numbers.
+// Best-effort: any parse failure yields an empty set (rush just won't flag) so a
+// malformed/edge-case file can never break the upload.
+async function extractRedFontRows(buf) {
+  const rows = new Set();
+  try {
+    const u16 = o => buf[o] | (buf[o+1] << 8);
+    const u32 = o => (buf[o] | (buf[o+1]<<8) | (buf[o+2]<<16) | (buf[o+3]<<24)) >>> 0;
+    let eocd = -1;
+    for (let i = buf.length - 22; i >= 0; i--) { if (u32(i) === 0x06054b50) { eocd = i; break; } }
+    if (eocd < 0) return rows;
+    const cdCount = u16(eocd + 10), cdOff = u32(eocd + 16);
+    const dec = new TextDecoder();
+    const files = {};
+    let p = cdOff;
+    for (let n = 0; n < cdCount; n++) {
+      if (u32(p) !== 0x02014b50) break;
+      const method = u16(p+10), compSize = u32(p+20), nameLen = u16(p+28), extraLen = u16(p+30), commLen = u16(p+32), lhOff = u32(p+42);
+      const name = dec.decode(buf.subarray(p+46, p+46+nameLen));
+      files[name] = { method, compSize, lhOff };
+      p += 46 + nameLen + extraLen + commLen;
+    }
+    async function readEntry(name) {
+      const e = files[name]; if (!e) return '';
+      const lh = e.lhOff;
+      const nameLen = u16(lh+26), extraLen = u16(lh+28);
+      const start = lh + 30 + nameLen + extraLen;
+      const comp = buf.subarray(start, start + e.compSize);
+      if (e.method === 0) return dec.decode(comp); // stored, not deflated
+      const ds = new DecompressionStream('deflate-raw');
+      const out = await new Response(new Blob([comp]).stream().pipeThrough(ds)).arrayBuffer();
+      return dec.decode(new Uint8Array(out));
+    }
+    const styles = await readEntry('xl/styles.xml');
+    // font index -> is it a red font?
+    const fontsBlock = (styles.match(/<fonts[\s\S]*?<\/fonts>/) || [''])[0];
+    const fontTags = fontsBlock.match(/<font>[\s\S]*?<\/font>|<font\/>/g) || [];
+    const fontRush = fontTags.map(f => {
+      const m = f.match(/<color[^>]*rgb="([0-9A-Fa-f]{6,8})"/);
+      return m ? isRushColor(m[1]) : false; // theme/indexed/no color -> not red
+    });
+    // cellXfs index (a cell's s="N") -> does its font resolve to red?
+    const xfsBlock = (styles.match(/<cellXfs[\s\S]*?<\/cellXfs>/) || [''])[0];
+    const xfTags = xfsBlock.match(/<xf[\s\S]*?(?:\/>|<\/xf>)/g) || [];
+    const styleRush = xfTags.map(x => { const m = x.match(/fontId="(\d+)"/); return fontRush[m ? +m[1] : 0] || false; });
+    // scan sheet rows: RUSH is signaled by a red font on the ORDER-NUMBER cell
+    // (column A) ONLY. Red font in other columns means something else — e.g. a
+    // dark-red Vendor Order # (col G) — and must NOT trigger rush, or it would
+    // manufacture false urgents. So we check column A's font alone.
+    const sheetFile = Object.keys(files).find(n => /^xl\/worksheets\/sheet\d+\.xml$/.test(n));
+    const sheet = sheetFile ? await readEntry(sheetFile) : '';
+    const rowRe = /<row[^>]*\br="(\d+)"[^>]*>([\s\S]*?)<\/row>/g;
+    let rm;
+    while ((rm = rowRe.exec(sheet))) {
+      const rn = +rm[1], body = rm[2];
+      const cellA = body.match(new RegExp('<c r="A' + rn + '"[^>]*\\bs="(\\d+)"'));
+      if (cellA && styleRush[+cellA[1]]) rows.add(rn);
+    }
+  } catch (e) {
+    console.warn('Red-font scan failed — RUSH flags disabled for this file:', e);
+  }
+  return rows;
+}
+
 function handleFile(file) {
   _lastFile = file;
   const reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = async function(e) {
     try {
       const data = new Uint8Array(e.target.result);
+      RED_FONT_ROWS = await extractRedFontRows(data);
       const wb = XLSX.read(data, { type: 'array', cellStyles: true });
       const ws = wb.Sheets[wb.SheetNames[0]];
       RAW_DATA = convertSheet(ws);
@@ -854,6 +929,9 @@ function convertSheet(ws) {
       bg: bgHex,
       text: textHex,
       raw_color: rawColor,
+      // RUSH flag — red font on this sheet row (SheetJS row r maps to 1-based XML row
+      // r+1). Read out-of-band by extractRedFontRows() since SheetJS drops font color.
+      font_red: RED_FONT_ROWS.has(r + 1),
       is_so: isSO,
       col_a: colA,
       date_placed: datePlaced,
@@ -993,6 +1071,23 @@ function cleanVendorName(v) {
 // Grey "done" cells appear in two shades in the wild: canonical FFD9D9D9 and the
 // near-identical FFCCCCCC. Treat both as "done — skip".
 const GREY_DONE = new Set(['FFD9D9D9', 'FFCCCCCC']);
+
+// RUSH ORDER — the buyer turns the order-number text RED (font color, not cell fill)
+// to mean "the customer needs this expedited." This tests whether a color is red:
+// match on the actual red channel rather than one exact hex, so any red the buyer
+// picks works — pure red FFFF0000, dark red FF980000, light red berry FFE06666, light
+// red FFEA9999, etc. Deliberately excludes orange (FFFF9900 = vendor-cancelled) and
+// the purple/grey/cyan/black status colors: red = strong red channel, green & blue
+// both clearly lower, green≈blue (so it's red, not orange). Very pale pinks (e.g.
+// F4CCCC) intentionally don't trigger. Applied to font colors read by
+// extractRedFontRows() (SheetJS's free build exposes fills only, never font color).
+function isRushColor(color) {
+  if (!color) return false;
+  const c = color.length === 8 ? color.slice(2) : color; // strip ARGB alpha
+  const R = parseInt(c.slice(0,2),16), G = parseInt(c.slice(2,4),16), B = parseInt(c.slice(4,6),16);
+  if ([R,G,B].some(Number.isNaN)) return false;
+  return R >= 150 && G <= 160 && B <= 160 && (R-G) >= 60 && (R-B) >= 60 && Math.abs(G-B) <= 80;
+}
 
 // Combine tracking + buyer continuation notes (_extra) for the queue card.
 // Optional prefix (e.g. "Order cost: ...") is shown first.
@@ -1675,6 +1770,18 @@ function buildQueue() {
       let r = classifyPO(po, block.so);
       if (!r) r = checkUnknowns(po, block.so);
       if (r) {
+        // RUSH ORDER — a red-FONT SO row (whole order) or a red-font PO line (single
+        // line) means the customer needs this expedited. Every still-open action on it
+        // jumps to URGENT with a RUSH badge so it surfaces at the top of the queue.
+        // Done rows already returned null from classifyPO, so a rush flag can't
+        // resurrect a completed order. WAIT (customer hold — can't rush a paused
+        // order) and NET 30 (payment timing, not a fulfillment action) are left as-is.
+        // font_red is set per row by extractRedFontRows() (see note there).
+        const rush = (block.so && block.so.font_red) || po.font_red;
+        if (rush && r.tier !== 'wait' && r.tier !== 'net30') {
+          r.isRush = true;
+          if (r.tier !== 1) { r.tier = 1; r.tierLabel = 'URGENT'; }
+        }
         r.vendorOrder = String(po.vendor_order || '').replace(/\.0$/, '').trim();
         items.push(r);
       }
@@ -1947,6 +2054,7 @@ function renderQueue() {
       s += '</div>';
       // middle col
       s += '<div>';
+      if (item.isRush) s += '<span class="rush-badge">&#9889; RUSH</span> ';
       if (item.isProblem) s += '<span class="problem-badge">PROBLEM</span> ';
       if (item.isPause) s += '<span class="pause-badge">PAUSE</span> ';
       if (item.isEnterSystem) s += '<span class="enter-system-badge">ENTER IN SYSTEM</span> ';
